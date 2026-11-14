@@ -1,5 +1,7 @@
 from datetime import datetime
 from typing import Optional
+
+from sqlalchemy import Column, DateTime
 from sqlmodel import SQLModel, Field
 
 
@@ -8,7 +10,7 @@ class User(SQLModel, table=True):
     email: str = Field(index=True, unique=True)
     name: str
     password_hash: str
-    role: str = "attendee"          # admin | staff | attendee
+    role: str = "attendee"
 
 
 class Venue(SQLModel, table=True):
@@ -27,10 +29,10 @@ class Event(SQLModel, table=True):
     title: str
     category: str
     venue_id: int
-    starts_at: datetime
-    ends_at: datetime
+    starts_at: datetime = Field(sa_column=Column(DateTime, nullable=False))
+    ends_at: datetime = Field(sa_column=Column(DateTime, nullable=False))
     description: str = ""
-    status: str = "draft"           # draft | published | cancelled
+    status: str = "draft"
 
 
 class TicketCategory(SQLModel, table=True):
@@ -50,9 +52,12 @@ class Booking(SQLModel, table=True):
     quantity: int
     amount: float
     payment_ref: str
-    status: str = "confirmed"       # confirmed | cancelled
+    status: str = "confirmed"
     refund_amount: float = 0.0
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column=Column(DateTime, nullable=False),
+    )
 
 
 class Ticket(SQLModel, table=True):
@@ -60,21 +65,22 @@ class Ticket(SQLModel, table=True):
     booking_id: int
     event_id: int
     code: str = Field(index=True, unique=True)
-    status: str = "valid"           # valid | used | cancelled
-    used_at: Optional[datetime] = None
+    status: str = "valid"
+    used_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime, nullable=True))
 
 
 class HireRequest(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int
     venue_id: int
-    starts_at: datetime
-    ends_at: datetime
+    starts_at: datetime = Field(sa_column=Column(DateTime, nullable=False))
+    ends_at: datetime = Field(sa_column=Column(DateTime, nullable=False))
     purpose: str
     guests: int
-    status: str = "pending"         # confirmed | escalated | rejected
+    status: str = "pending"
     price: float = 0.0
-    alternatives: str = ""          # JSON list
+    alternatives: str = ""
     decided_by: str = ""
 
 
@@ -84,10 +90,12 @@ class WaitlistEntry(SQLModel, table=True):
     event_id: int
     category_id: int
     quantity: int
-    status: str = "waiting"         # waiting | offered | expired | converted
+    status: str = "waiting"
     cycles: int = 0
-    offered_at: Optional[datetime] = None
-    expires_at: Optional[datetime] = None
+    offered_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime, nullable=True))
+    expires_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime, nullable=True))
 
 
 class Notification(SQLModel, table=True):
@@ -96,7 +104,10 @@ class Notification(SQLModel, table=True):
     title: str
     body: str
     read: bool = False
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column=Column(DateTime, nullable=False),
+    )
 
 
 class MessageLog(SQLModel, table=True):
@@ -105,11 +116,27 @@ class MessageLog(SQLModel, table=True):
     sender: str
     receiver: str
     performative: str
-    content: str                    # JSON string
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    content: str
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column=Column(DateTime, nullable=False),
+    )
 
 
 class AgentState(SQLModel, table=True):
     agent: str = Field(primary_key=True)
-    data: str = "{}"                # JSON beliefs
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    data: str = "{}"
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column=Column(DateTime, nullable=False),
+    )
+
+
+class SessionToken(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    user_id: int
+    csrf: str
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column=Column(DateTime, nullable=False),
+    )
