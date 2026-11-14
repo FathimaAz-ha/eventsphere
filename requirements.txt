@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlmodel
+pydantic
+passlib[bcrypt]
+python-multipart
+qrcode[pil]
+httpx
+pytest
