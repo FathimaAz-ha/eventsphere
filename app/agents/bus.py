@@ -45,11 +45,14 @@ class MessageBus:
         if self._log_writer:
             await self._log_writer(msg)
 
-        if msg.receiver == "*":                      # broadcast
+        if msg.receiver == "*": 
+                               # broadcast
             for name, h in self._handlers.items():
-                if name != msg.sender:
-                    copy = msg.model_copy(update={"receiver": name})
-                    await h(copy)
+                if name == msg.sender :
+                    continue
+               
+                copy = msg.model_copy(update={"receiver": name})
+                await h(copy)
             return None
 
         handler = self._handlers.get(msg.receiver)

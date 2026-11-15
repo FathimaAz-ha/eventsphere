@@ -12,7 +12,7 @@ class NotificationAgent:
         self.bus = bus
         self.engine = engine
         # listener: reacts to any INFORM in the system
-        bus.subscribe(self.name, self.handle)
+        
         bus.subscribe("*", self.handle)
 
     async def handle(self, msg: Message):
