@@ -1,42 +1,94 @@
 {% extends "base.html" %}
 {% block title %}{{ event.title }}{% endblock %}
 {% block content %}
-<h4>{{ event.title }}</h4>
-<p class="text-muted small">
-  {{ event.category|title }} · {{ event.starts_at.strftime('%d %b %Y %H:%M') }} – {{ event.ends_at.strftime('%H:%M') }}
-</p>
-<p>{{ event.description }}</p>
+<a href="/events" class="btn btn-glass btn-sm mb-3">
+  <i class="bi bi-arrow-left me-1"></i> Back to Events
+</a>
 
-<h6>Tickets</h6>
-{% for c in categories %}
-<div class="card mb-2"><div class="card-body py-2">
-  <div class="d-flex justify-content-between align-items-center gap-2">
-    <div>
-      <strong>{{ c.name }}</strong> — £{{ '%.2f'|format(c.price) }}<br>
-      <span class="small text-muted">{{ c.quantity - c.sold }} left</span>
-    </div>
-    {% if user %}
-      {% if c.quantity - c.sold > 0 %}
-      <form method="post" action="/bookings/create" class="d-flex gap-2">
-        <input type="hidden" name="csrf" value="{{ csrf }}">
-        <input type="hidden" name="category_id" value="{{ c.id }}">
-        <input name="quantity" type="number" min="1" max="6" value="1"
-               class="form-control form-control-sm" style="width:70px">
-        <button class="btn btn-primary btn-sm">Book</button>
-      </form>
-      {% else %}
-      <form method="post" action="/bookings/create" class="d-flex gap-2">
-        <input type="hidden" name="csrf" value="{{ csrf }}">
-        <input type="hidden" name="category_id" value="{{ c.id }}">
-        <input name="quantity" type="number" min="1" max="6" value="1"
-               class="form-control form-control-sm" style="width:70px">
-        <button class="btn btn-outline-secondary btn-sm">Waitlist</button>
-      </form>
-      {% endif %}
-    {% else %}
-      <a href="/login" class="btn btn-outline-primary btn-sm">Sign in</a>
-    {% endif %}
+<!-- Event Hero Card -->
+<div class="glass-card mb-3">
+  <div class="d-flex align-items-center gap-2 mb-2">
+    <span class="badge rounded-pill" style="background: rgba(99, 102, 241, 0.25); color: #c084fc; border: 1px solid rgba(99, 102, 241, 0.4); font-size: 0.75rem;">
+      <i class="bi bi-tag-fill me-1"></i>{{ event.category|title }}
+    </span>
+    <span class="badge rounded-pill bg-success-subtle text-success-emphasis" style="font-size: 0.72rem;">
+      {{ event.status|title }}
+    </span>
   </div>
-</div></div>
+
+  <h4 class="text-white mb-2" style="font-weight: 800;">{{ event.title }}</h4>
+
+  <div class="d-flex flex-wrap gap-3 text-subtle small mb-3">
+    <div>
+      <i class="bi bi-calendar3 me-1 text-primary"></i>
+      {{ event.starts_at.strftime('%A, %d %B %Y') }}
+    </div>
+    <div>
+      <i class="bi bi-clock me-1 text-info"></i>
+      {{ event.starts_at.strftime('%H:%M') }} – {{ event.ends_at.strftime('%H:%M') }}
+    </div>
+  </div>
+
+  <hr style="border-color: rgba(255, 255, 255, 0.12); margin: 12px 0;">
+
+  <h6 class="text-white mb-1" style="font-size: 0.9rem;">About Event</h6>
+  <p class="text-subtle small mb-0" style="line-height: 1.6;">
+    {{ event.description or 'Join us for this exciting live session!' }}
+  </p>
+</div>
+
+<!-- Available Tickets Section -->
+<h5 class="text-white mb-3">Select Tickets</h5>
+{% for c in categories %}
+{% set remaining = c.quantity - c.sold %}
+<div class="glass-card mb-2">
+  <div class="d-flex justify-content-between align-items-center gap-3">
+    <div>
+      <div class="d-flex align-items-center gap-2">
+        <h6 class="text-white mb-0" style="font-weight: 700;">{{ c.name }}</h6>
+        <span class="badge rounded-pill font-monospace" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; font-size: 0.7rem;">
+          {% if remaining > 0 %}{{ remaining }} available{% else %}Sold Out{% endif %}
+        </span>
+      </div>
+      <div class="fs-5 fw-bold text-white mt-1">
+        £{{ '%.2f'|format(c.price) }}
+      </div>
+    </div>
+
+    <div>
+      {% if user %}
+        {% if remaining > 0 %}
+        <form method="post" action="/bookings/create" class="d-flex align-items-center gap-2">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="hidden" name="category_id" value="{{ c.id }}">
+          <select name="quantity" class="form-select form-select-sm" style="width: 70px;">
+            {% for n in range(1, [remaining + 1, 7]|min) %}
+            <option value="{{ n }}">{{ n }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-primary btn-sm px-3" style="font-size: 0.85rem;">
+            Book
+          </button>
+        </form>
+        {% else %}
+        <form method="post" action="/bookings/create" class="d-flex align-items-center gap-2">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="hidden" name="category_id" value="{{ c.id }}">
+          <input type="hidden" name="quantity" value="1">
+          <button class="btn btn-glass btn-sm px-3" style="color: #fde047; border-color: rgba(250, 204, 21, 0.4);">
+            <i class="bi bi-hourglass-split me-1"></i> Waitlist
+          </button>
+        </form>
+        {% endif %}
+      {% else %}
+        <a href="/login" class="btn btn-glass btn-sm px-3">
+          Sign In
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% else %}
+<p class="text-subtle small">No tickets currently configured for this event.</p>
 {% endfor %}
 {% endblock %}

@@ -1,14 +1,32 @@
 {% extends "base.html" %}
-{% block title %}Register{% endblock %}
+{% block title %}Create Account{% endblock %}
 {% block content %}
-<h4>Create account</h4>
-<form method="post" action="/register" class="mt-3">
-  <div class="mb-2"><label class="form-label">Name</label>
-    <input name="name" class="form-control" required></div>
-  <div class="mb-2"><label class="form-label">Email</label>
-    <input name="email" type="email" class="form-control" required></div>
-  <div class="mb-3"><label class="form-label">Password (min 6)</label>
-    <input name="password" type="password" class="form-control" required minlength="6"></div>
-  <button class="btn btn-primary w-100">Create</button>
-</form>
+<div class="glass-card mt-3">
+  <div class="text-center mb-4">
+    <h4 class="mb-1">Create Account</h4>
+    <p class="text-subtle small mb-0">Join EventSphere to discover and book venues</p>
+  </div>
+
+  <form method="post" action="/register">
+    <div class="mb-3">
+      <label class="form-label">Full Name</label>
+      <input name="name" class="form-control" placeholder="John Doe" required>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Email Address</label>
+      <input name="email" type="email" class="form-control" placeholder="name@domain.com" required>
+    </div>
+    <div class="mb-4">
+      <label class="form-label">Password <span class="text-subtle font-normal">(min 6 characters)</span></label>
+      <input name="password" type="password" class="form-control" placeholder="••••••••" required minlength="6">
+    </div>
+    <button class="btn btn-primary w-100 py-2 mb-3">
+      Register
+    </button>
+  </form>
+
+  <div class="text-center small text-subtle">
+    Already have an account? <a href="/login" class="text-decoration-none" style="color: #c084fc; font-weight: 600;">Sign in</a>
+  </div>
+</div>
 {% endblock %}

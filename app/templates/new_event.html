@@ -1,31 +1,87 @@
 {% extends "base.html" %}
-{% block title %}New event{% endblock %}
+{% block title %}Create Event{% endblock %}
 {% block content %}
-<h4>Create event</h4>
-<form method="post" action="/admin/event" class="row g-2 mt-2">
-  <input type="hidden" name="csrf" value="{{ csrf }}">
-  <div class="col-12"><input name="title" class="form-control" placeholder="Title" required></div>
-  <div class="col-md-6">
-    <select name="category" class="form-select" required>
-      {% for c in ['concert','workshop','seminar','conference'] %}
-      <option value="{{ c }}">{{ c|title }}</option>{% endfor %}
-    </select>
+<a href="/dashboard" class="btn btn-glass btn-sm mb-3">
+  <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+</a>
+
+<div class="glass-card">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <div class="p-2 rounded-3" style="background: rgba(236, 72, 153, 0.2); border: 1px solid rgba(236, 72, 153, 0.4);">
+      <i class="bi bi-calendar-plus text-danger fs-5"></i>
+    </div>
+    <div>
+      <h5 class="mb-0 text-white">Publish New Event</h5>
+      <span class="small text-subtle">Verified autonomously via VenueAgent calendar slot checks</span>
+    </div>
   </div>
-  <div class="col-md-6">
-    <select name="venue_id" class="form-select" required>
-      {% for v in venues %}
-      <option value="{{ v.id }}">{{ v.name }} (cap {{ v.capacity }})</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="col-md-6"><label class="small text-muted">Starts</label>
-    <input name="starts_at" type="datetime-local" class="form-control" required></div>
-  <div class="col-md-6"><label class="small text-muted">Ends</label>
-    <input name="ends_at" type="datetime-local" class="form-control" required></div>
-  <div class="col-12"><textarea name="description" class="form-control" placeholder="Description" rows="2"></textarea></div>
-  <div class="col-md-5"><input name="ticket_name" class="form-control" placeholder="Category name" value="Standard"></div>
-  <div class="col-md-3"><input name="ticket_price" type="number" step="0.01" class="form-control" placeholder="Price" value="10"></div>
-  <div class="col-md-4"><input name="ticket_quantity" type="number" min="1" class="form-control" placeholder="Quantity" required></div>
-  <div class="col-12"><button class="btn btn-primary">Create &amp; publish</button></div>
-</form>
+
+  <form method="post" action="/admin/event">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    
+    <div class="mb-3">
+      <label class="form-label">Event Title</label>
+      <input name="title" class="form-control" placeholder="e.g. AI Robotics Workshop" required>
+    </div>
+
+    <div class="row g-2 mb-3">
+      <div class="col-6">
+        <label class="form-label">Category</label>
+        <select name="category" class="form-select" required>
+          {% for c in ['concert', 'workshop', 'seminar', 'conference'] %}
+          <option value="{{ c }}">{{ c|title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6">
+        <label class="form-label">Venue Location</label>
+        <select name="venue_id" class="form-select" required>
+          {% for v in venues %}
+          <option value="{{ v.id }}">{{ v.name }} (Cap: {{ v.capacity }})</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="row g-2 mb-3">
+      <div class="col-6">
+        <label class="form-label">Starts At</label>
+        <input name="starts_at" type="datetime-local" class="form-control" required>
+      </div>
+      <div class="col-6">
+        <label class="form-label">Ends At</label>
+        <input name="ends_at" type="datetime-local" class="form-control" required>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Description</label>
+      <textarea name="description" class="form-control" placeholder="Keynote speakers, schedule, agenda..." rows="2"></textarea>
+    </div>
+
+    <div class="p-3 rounded-4 mb-4" style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1);">
+      <h6 class="text-white mb-2" style="font-size: 0.85rem;">
+        <i class="bi bi-ticket-perforated me-1 text-info"></i> Ticket Allocation
+      </h6>
+      <div class="row g-2">
+        <div class="col-5">
+          <label class="form-label" style="font-size: 0.75rem;">Tier Name</label>
+          <input name="ticket_name" class="form-control form-control-sm" value="Standard" required>
+        </div>
+        <div class="col-3">
+          <label class="form-label" style="font-size: 0.75rem;">Price (£)</label>
+          <input name="ticket_price" type="number" step="0.01" class="form-control form-control-sm" value="15.00" required>
+        </div>
+        <div class="col-4">
+          <label class="form-label" style="font-size: 0.75rem;">Total Quantity</label>
+          <input name="ticket_quantity" type="number" min="1" class="form-control form-control-sm" placeholder="100" required>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary w-100 py-2">
+      <i class="bi bi-broadcast me-1"></i> Verify Slot &amp; Publish Event
+    </button>
+  </form>
+</div>
 {% endblock %}

@@ -1,22 +1,40 @@
 {% extends "base.html" %}
-{% block title %}Scan{% endblock %}
+{% block title %}Gate Scanner{% endblock %}
 {% block content %}
-<h4>Scan Ticket</h4>
-<div id="reader" style="width:100%"></div>
-<div id="result" class="mt-2"></div>
-<hr>
-<form id="manual" class="d-flex gap-2 mt-3">
-  <input name="code" class="form-control" placeholder="Paste code" required>
-  <button class="btn btn-primary">Submit</button>
-</form>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h4 class="mb-0">Gate Ticket Scanner</h4>
+    <p class="text-subtle small mb-0">Authorized Staff Verification (TicketAgent)</p>
+  </div>
+</div>
+
+<!-- Scanner Viewfinder Card -->
+<div class="glass-card mb-3 p-3 text-center">
+  <div id="reader" style="width: 100%; border-radius: 16px; overflow: hidden; background: rgba(0, 0, 0, 0.4);"></div>
+  <div id="result" class="mt-3"></div>
+</div>
+
+<!-- Manual Code Input Card -->
+<div class="glass-card mb-3">
+  <h6 class="text-white mb-2" style="font-size: 0.9rem;">
+    <i class="bi bi-keyboard me-1 text-primary"></i> Manual Code Verification
+  </h6>
+  <form id="manual" class="d-flex gap-2">
+    <input name="code" class="form-control" placeholder="Paste ES-xxxxxxxx ticket code" required>
+    <button class="btn btn-primary px-3 text-nowrap">
+      <i class="bi bi-qr-code me-1"></i> Verify
+    </button>
+  </form>
+</div>
 {% endblock %}
+
 {% block scripts %}
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
 const result = document.getElementById("result");
 
 async function sendCode(code) {
-  result.innerHTML = '<div class="alert alert-info">Checking…</div>';
+  result.innerHTML = '<div class="alert-glass alert-glass-info py-2"><i class="bi bi-arrow-repeat spin me-1"></i> Contacting TicketAgent...</div>';
   try {
     const r = await fetch("/api/scan", {
       method: "POST",
@@ -25,24 +43,31 @@ async function sendCode(code) {
     });
     const j = await r.json();
     if (r.status === 401 || r.status === 403) {
-      result.innerHTML = '<div class="alert alert-warning">Login as staff/admin first.</div>';
+      result.innerHTML = '<div class="alert-glass alert-glass-warning py-2"><i class="bi bi-lock me-1"></i> Unauthorized: Staff or Admin role required.</div>';
       return;
     }
     const ok = j.performative === "AGREE";
-    result.innerHTML = `<div class="alert alert-${ok ? 'success' : 'danger'}">
-      <strong>${ok ? 'ADMITTED' : 'REFUSED'}</strong><br>
-      ${ok ? 'Ticket ' + j.ticket_id : (j.reason || j.detail || 'Error')}
-    </div>`;
+    result.innerHTML = `
+      <div class="alert-glass ${ok ? 'alert-glass-success' : 'alert-glass-danger'} py-3 text-center">
+        <i class="bi ${ok ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger'} fs-3 d-block mb-1"></i>
+        <h5 class="fw-bold mb-1 ${ok ? 'text-success' : 'text-danger'}">${ok ? 'ADMISSION GRANTED' : 'ACCESS REFUSED'}</h5>
+        <div class="small">${ok ? 'Ticket #' + j.ticket_id + ' checked in.' : (j.reason || j.detail || 'Ticket invalid.')}</div>
+      </div>
+    `;
   } catch (err) {
-    result.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+    result.innerHTML = `<div class="alert-glass alert-glass-danger py-2">${err.message}</div>`;
   }
 }
 
-new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 }).render(sendCode);
+try {
+  new Html5QrcodeScanner("reader", { fps: 10, qrbox: 240 }).render(sendCode);
+} catch(e) {
+  console.log("Camera unavailable or blocked:", e);
+}
 
 document.getElementById("manual").addEventListener("submit", e => {
   e.preventDefault();
-  sendCode(e.target.code.value);
+  sendCode(e.target.code.value.trim());
 });
 </script>
 {% endblock %}

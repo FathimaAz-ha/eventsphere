@@ -1,45 +1,463 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}EventSphere{% endblock %} — EventSphere</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<style>
-  body { padding-bottom: 3rem; }
-  .container { max-width: 760px; }
-  .qr { width: 100%; max-width: 180px; height: auto; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>{% block title %}EventSphere{% endblock %} — EventSphere</title>
+  
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    :root {
+      --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
+      --accent-cyan: #06b6d4;
+      --accent-purple: #8b5cf6;
+      --glass-bg: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.16);
+      --glass-shadow: 0 10px 32px 0 rgba(0, 0, 0, 0.37);
+      --text-muted: rgba(241, 245, 249, 0.65);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background: #090d16;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #f8fafc;
+      overflow-x: hidden;
+      padding-bottom: 96px; /* space for bottom dock */
+      position: relative;
+    }
+
+    /* Ambient glowing orbs in background for rich glassmorphism blur */
+    body::before, body::after {
+      content: "";
+      position: fixed;
+      width: 380px;
+      height: 380px;
+      border-radius: 50%;
+      filter: blur(100px);
+      z-index: -1;
+      opacity: 0.55;
+      pointer-events: none;
+    }
+    body::before {
+      top: -60px;
+      left: -80px;
+      background: radial-gradient(circle, #4f46e5 0%, #312e81 70%, transparent 100%);
+    }
+    body::after {
+      bottom: 60px;
+      right: -80px;
+      background: radial-gradient(circle, #ec4899 0%, #701a75 70%, transparent 100%);
+    }
+
+    /* Ambient Center Orb */
+    .ambient-glow-center {
+      position: fixed;
+      top: 45%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 420px;
+      height: 420px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(14, 165, 233, 0.18) 0%, rgba(99, 102, 241, 0.08) 50%, transparent 100%);
+      filter: blur(120px);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    /* App Shell / Mobile Container */
+    .app-shell {
+      max-width: 580px;
+      margin: 0 auto;
+      padding: 0 16px;
+    }
+
+    /* Glass Top Header */
+    .app-topbar {
+      position: sticky;
+      top: 0;
+      z-index: 1020;
+      background: rgba(9, 13, 22, 0.72);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--glass-border);
+      padding: 12px 16px;
+      margin-bottom: 18px;
+    }
+    .brand-logo {
+      font-weight: 800;
+      font-size: 1.25rem;
+      background: var(--primary-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: -0.5px;
+    }
+
+    /* Role Badges */
+    .role-badge {
+      font-size: 0.72rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .role-admin {
+      background: rgba(236, 72, 153, 0.2);
+      color: #f472b6;
+      border-color: rgba(236, 72, 153, 0.4);
+    }
+    .role-staff {
+      background: rgba(6, 182, 212, 0.2);
+      color: #22d3ee;
+      border-color: rgba(6, 182, 212, 0.4);
+    }
+    .role-attendee {
+      background: rgba(99, 102, 241, 0.2);
+      color: #a5b4fc;
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+
+    /* Glass Card Standard */
+    .glass-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--glass-shadow);
+      border-radius: 22px;
+      padding: 18px;
+      margin-bottom: 16px;
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .glass-card-hover:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.3);
+      box-shadow: 0 14px 40px rgba(99, 102, 241, 0.18);
+    }
+
+    /* Glass Form Inputs */
+    .form-control, .form-select {
+      background: rgba(255, 255, 255, 0.06) !important;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.18) !important;
+      color: #f8fafc !important;
+      border-radius: 14px !important;
+      padding: 0.7rem 1rem !important;
+      font-size: 0.95rem;
+      transition: all 0.2s ease;
+    }
+    .form-control:focus, .form-select:focus {
+      background: rgba(255, 255, 255, 0.1) !important;
+      border-color: #818cf8 !important;
+      box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.25) !important;
+      color: #fff !important;
+    }
+    .form-control::placeholder {
+      color: rgba(241, 245, 249, 0.45) !important;
+    }
+    .form-select option {
+      background: #0f172a;
+      color: #fff;
+    }
+    .form-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+    }
+
+    /* Glass Buttons */
+    .btn-primary {
+      background: var(--primary-gradient) !important;
+      border: none !important;
+      border-radius: 14px !important;
+      font-weight: 700 !important;
+      padding: 0.75rem 1.25rem !important;
+      color: #fff !important;
+      box-shadow: 0 4px 18px rgba(99, 102, 241, 0.4) !important;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+      letter-spacing: 0.2px;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(99, 102, 241, 0.6) !important;
+    }
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+    .btn-glass {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      color: #f8fafc;
+      border-radius: 14px;
+      font-weight: 600;
+      padding: 0.65rem 1.15rem;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-glass:hover {
+      background: rgba(255, 255, 255, 0.16);
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+    .btn-glass-danger {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+    }
+    .btn-glass-danger:hover {
+      background: rgba(239, 68, 68, 0.3);
+      color: #fff;
+    }
+
+    /* Mobile Bottom Navigation Dock */
+    .mobile-bottom-nav {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 24px);
+      max-width: 540px;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 26px;
+      padding: 6px 10px;
+      box-shadow: 0 14px 35px rgba(0, 0, 0, 0.6);
+      z-index: 1040;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+    }
+    .nav-tab-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: rgba(241, 245, 249, 0.6);
+      text-decoration: none;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 18px;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .nav-tab-item i {
+      font-size: 1.25rem;
+      margin-bottom: 2px;
+      transition: transform 0.2s ease;
+    }
+    .nav-tab-item:hover {
+      color: #fff;
+    }
+    .nav-tab-item.active {
+      color: #fff;
+      background: rgba(99, 102, 241, 0.3);
+      box-shadow: 0 0 14px rgba(99, 102, 241, 0.35);
+    }
+    .nav-tab-item.active i {
+      transform: scale(1.1);
+      color: #c084fc;
+    }
+
+    /* Alerts */
+    .alert-glass {
+      backdrop-filter: blur(15px);
+      border-radius: 18px;
+      border: 1px solid;
+      padding: 14px 18px;
+      margin-bottom: 18px;
+      font-size: 0.92rem;
+    }
+    .alert-glass-info {
+      background: rgba(6, 182, 212, 0.15);
+      border-color: rgba(6, 182, 212, 0.4);
+      color: #a5f3fc;
+    }
+    .alert-glass-success {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+    }
+    .alert-glass-warning {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: rgba(245, 158, 11, 0.4);
+      color: #fde68a;
+    }
+    .alert-glass-danger {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+
+    /* Typography & Utilities */
+    h4, h5, h6 {
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .text-subtle {
+      color: var(--text-muted);
+    }
+    .qr {
+      width: 100%;
+      max-width: 170px;
+      height: auto;
+      border-radius: 16px;
+      background: #fff;
+      padding: 8px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    }
+
+    /* Category Filter Pills */
+    .cat-pill {
+      display: inline-block;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: rgba(241, 245, 249, 0.7);
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 600;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+    .cat-pill:hover, .cat-pill.active {
+      background: var(--primary-gradient);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35);
+    }
+
+    /* Floating action micro-animations */
+    .fade-in {
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+  {% block head %}{% endblock %}
 </head>
 <body>
-<nav class="navbar navbar-expand navbar-dark bg-dark mb-3">
-  <div class="container flex-wrap">
-    <a class="navbar-brand" href="/events">EventSphere</a>
-    <ul class="navbar-nav ms-auto flex-row flex-wrap small">
-      {% if user %}
-        <li class="nav-item"><a class="nav-link py-1" href="/events">Events</a></li>
-        <li class="nav-item"><a class="nav-link py-1" href="/tickets">Tickets</a></li>
-        <li class="nav-item"><a class="nav-link py-1" href="/bookings">Bookings</a></li>
-        <li class="nav-item"><a class="nav-link py-1" href="/hire">Hire</a></li>
-        {% if user.role in ('staff','admin') %}
-        <li class="nav-item"><a class="nav-link py-1" href="/scan">Scan</a></li>
+  <div class="ambient-glow-center"></div>
+
+  <!-- Top Mobile App Header -->
+  <header class="app-topbar">
+    <div class="app-shell d-flex justify-content-between align-items-center">
+      <a class="brand-logo" href="/events">
+        <i class="bi bi-stars"></i> EventSphere
+      </a>
+      
+      <div class="d-flex align-items-center gap-2">
+        {% if user %}
+          <span class="role-badge role-{{ user.role }}">
+            {% if user.role == 'admin' %}<i class="bi bi-lightning-charge-fill me-1"></i>Admin
+            {% elif user.role == 'staff' %}<i class="bi bi-shield-check me-1"></i>Staff
+            {% else %}<i class="bi bi-person-fill me-1"></i>{{ user.name.split(' ')[0] }}
+            {% endif %}
+          </span>
+          <a href="/logout" class="btn-glass py-1 px-2" title="Sign out" style="font-size: 0.8rem; border-radius: 10px;">
+            <i class="bi bi-box-arrow-right"></i>
+          </a>
+        {% else %}
+          <a href="/login" class="btn-glass py-1 px-3" style="font-size: 0.85rem;">Sign in</a>
+          <a href="/register" class="btn btn-primary py-1 px-3" style="font-size: 0.85rem;">Join</a>
         {% endif %}
-        {% if user.role == 'admin' %}
-        <li class="nav-item"><a class="nav-link py-1" href="/dashboard">Dashboard</a></li>
-        {% endif %}
-        <li class="nav-item"><a class="nav-link py-1" href="/logout">Logout</a></li>
-      {% else %}
-        <li class="nav-item"><a class="nav-link py-1" href="/login">Login</a></li>
-        <li class="nav-item"><a class="nav-link py-1" href="/register">Register</a></li>
-      {% endif %}
-    </ul>
-  </div>
-</nav>
-<main class="container">
-{% if flash %}<div class="alert alert-{{ flash.type }}">{{ flash.msg }}</div>{% endif %}
-{% block content %}{% endblock %}
-</main>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-{% block scripts %}{% endblock %}
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="app-shell fade-in">
+    {% if flash %}
+      <div class="alert-glass alert-glass-{{ flash.type }} d-flex align-items-center gap-2">
+        <i class="bi {% if flash.type == 'success' %}bi-check-circle-fill{% elif flash.type == 'danger' %}bi-exclamation-triangle-fill{% elif flash.type == 'warning' %}bi-exclamation-circle-fill{% else %}bi-info-circle-fill{% endif %} fs-5"></i>
+        <div>{{ flash.msg }}</div>
+      </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Mobile Bottom Navigation Dock -->
+  {% if user %}
+  <nav class="mobile-bottom-nav">
+    <a href="/events" class="nav-tab-item" data-path="/events">
+      <i class="bi bi-calendar4-event"></i>
+      <span>Events</span>
+    </a>
+    <a href="/tickets" class="nav-tab-item" data-path="/tickets">
+      <i class="bi bi-ticket-perforated"></i>
+      <span>Tickets</span>
+    </a>
+    <a href="/bookings" class="nav-tab-item" data-path="/bookings">
+      <i class="bi bi-receipt"></i>
+      <span>Bookings</span>
+    </a>
+    <a href="/hire" class="nav-tab-item" data-path="/hire">
+      <i class="bi bi-building-check"></i>
+      <span>Hire</span>
+    </a>
+    
+    {% if user.role in ('staff', 'admin') %}
+    <a href="/scan" class="nav-tab-item" data-path="/scan">
+      <i class="bi bi-qr-code-scan"></i>
+      <span>Scan</span>
+    </a>
+    {% endif %}
+
+    {% if user.role == 'admin' %}
+    <a href="/dashboard" class="nav-tab-item" data-path="/dashboard">
+      <i class="bi bi-speedometer2"></i>
+      <span>Admin</span>
+    </a>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Highlight active mobile bottom navigation tab based on URL path
+    document.addEventListener("DOMContentLoaded", () => {
+      const currentPath = window.location.pathname;
+      document.querySelectorAll(".mobile-bottom-nav a").forEach(tab => {
+        const path = tab.getAttribute("data-path");
+        if (path && (currentPath === path || (path !== "/events" && currentPath.startsWith(path)))) {
+          tab.classList.add("active");
+        } else if (path === "/events" && currentPath === "/") {
+          tab.classList.add("active");
+        }
+      });
+    });
+  </script>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

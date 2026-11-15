@@ -1,15 +1,68 @@
 {% extends "base.html" %}
 {% block title %}My Tickets{% endblock %}
 {% block content %}
-<h4>My Tickets</h4>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h4 class="mb-0">Digital Passes</h4>
+    <p class="text-subtle small mb-0">Present your QR code at the door for entry</p>
+  </div>
+  <a href="/events" class="btn btn-glass btn-sm" style="font-size: 0.8rem;">
+    <i class="bi bi-plus-circle me-1"></i> Book More
+  </a>
+</div>
+
 {% for t in tickets %}
-<div class="card mb-3"><div class="card-body text-center">
-  <h6 class="mb-1">{{ t.event_title }}</h6>
-  <p class="small text-muted mb-1">Status: {{ t.status }}</p>
-  <p class="small mb-2"><code>{{ t.code }}</code></p>
-  <img src="{{ t.qr }}" alt="QR code" class="qr">
-</div></div>
+<div class="glass-card p-0 mb-4 overflow-hidden position-relative" style="border: 1px solid rgba(255, 255, 255, 0.2);">
+  <!-- Top Event Header -->
+  <div class="p-3" style="background: rgba(99, 102, 241, 0.15); border-bottom: 1px dashed rgba(255, 255, 255, 0.2);">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <span class="badge rounded-pill mb-1" style="background: rgba(255, 255, 255, 0.1); font-size: 0.7rem;">
+          TICKET PASS
+        </span>
+        <h5 class="text-white mb-0" style="font-weight: 700;">{{ t.event_title }}</h5>
+      </div>
+      <span class="badge rounded-pill {% if t.status == 'valid' %}bg-success-subtle text-success-emphasis border border-success-subtle{% elif t.status == 'used' %}bg-secondary-subtle text-secondary-emphasis{% else %}bg-danger-subtle text-danger-emphasis{% endif %}"
+            style="font-size: 0.72rem; text-transform: uppercase;">
+        {{ t.status }}
+      </span>
+    </div>
+  </div>
+
+  <!-- QR Code & Details -->
+  <div class="p-4 text-center">
+    <div class="d-inline-block position-relative mb-3">
+      <img src="{{ t.qr }}" alt="QR Code" class="qr">
+      {% if t.status == 'used' %}
+      <div class="position-absolute top-50 start-50 translate-middle badge bg-dark bg-opacity-75 py-2 px-3 fs-6 rounded-pill">
+        <i class="bi bi-check-all me-1 text-success"></i> ADMITTED
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="mb-2">
+      <div class="text-subtle small mb-1" style="font-size: 0.75rem;">PASS CODE</div>
+      <div class="d-inline-flex align-items-center gap-2 p-2 rounded-3" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12);">
+        <code class="text-white font-monospace" style="font-size: 0.95rem;">{{ t.code }}</code>
+        <button class="btn btn-sm btn-link text-subtle p-0" title="Copy code" onclick="navigator.clipboard.writeText('{{ t.code }}'); alert('Code copied!')">
+          <i class="bi bi-copy"></i>
+        </button>
+      </div>
+    </div>
+    
+    <div class="small text-subtle" style="font-size: 0.78rem;">
+      <i class="bi bi-shield-check text-info me-1"></i> Validated by TicketAgent with single-scan enforcement
+    </div>
+  </div>
+</div>
 {% else %}
-<p class="text-muted">No tickets yet. <a href="/events">Browse events</a>.</p>
+<div class="glass-card text-center py-5">
+  <div class="mb-3">
+    <i class="bi bi-ticket-perforated fs-1 text-subtle"></i>
+  </div>
+  <h6>No Active Tickets</h6>
+  <p class="text-subtle small mb-3">You don't have any event tickets yet.</p>
+  <a href="/events" class="btn btn-primary btn-sm">Browse Events</a>
+</div>
 {% endfor %}
 {% endblock %}

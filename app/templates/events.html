@@ -1,29 +1,88 @@
 {% extends "base.html" %}
-{% block title %}Events{% endblock %}
+{% block title %}Discover Events{% endblock %}
 {% block content %}
-<h4>Events</h4>
-<form class="row g-2 mb-3" method="get" action="/events">
-  <div class="col-7"><input name="q" class="form-control" placeholder="Search" value="{{ q or '' }}"></div>
-  <div class="col-3">
-    <select name="category" class="form-select">
-      <option value="">All</option>
-      {% for c in ['concert','workshop','seminar','conference'] %}
-      <option value="{{ c }}" {% if category==c %}selected{% endif %}>{{ c|title }}</option>
-      {% endfor %}
-    </select>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h4 class="mb-0">Featured Events</h4>
+    <p class="text-subtle small mb-0">Browse concerts, workshops, and private hires</p>
   </div>
-  <div class="col-2"><button class="btn btn-outline-secondary w-100">Go</button></div>
+  {% if user and user.role == 'admin' %}
+  <a href="/admin/event/new" class="btn btn-glass py-1 px-3" style="font-size: 0.82rem;">
+    <i class="bi bi-plus-lg"></i> New
+  </a>
+  {% endif %}
+</div>
+
+<!-- Search & Category Filters -->
+<form method="get" action="/events" class="mb-3">
+  <div class="position-relative mb-2">
+    <i class="bi bi-search position-absolute top-50 translate-middle-y ms-3 text-subtle"></i>
+    <input name="q" class="form-control ps-5" placeholder="Search events, workshops..." value="{{ q or '' }}">
+  </div>
+  
+  <div class="d-flex gap-2 overflow-x-auto pb-1" style="scrollbar-width: none;">
+    <a href="/events{% if q %}?q={{ q }}{% endif %}" class="cat-pill {% if not category %}active{% endif %}">
+      All Events
+    </a>
+    {% for c in ['concert', 'workshop', 'seminar', 'conference'] %}
+    <a href="/events?category={{ c }}{% if q %}&q={{ q }}{% endif %}" class="cat-pill {% if category == c %}active{% endif %}">
+      {% if c == 'concert' %}<i class="bi bi-music-note-beamed me-1"></i>
+      {% elif c == 'workshop' %}<i class="bi bi-laptop me-1"></i>
+      {% elif c == 'seminar' %}<i class="bi bi-mortarboard me-1"></i>
+      {% else %}<i class="bi bi-people me-1"></i>{% endif %}
+      {{ c|title }}
+    </a>
+    {% endfor %}
+  </div>
 </form>
+
+<!-- Events Feed -->
 {% for e in events %}
-<a href="/events/{{ e.id }}" class="text-decoration-none text-dark">
-  <div class="card mb-2"><div class="card-body py-2">
-    <h6 class="mb-1">{{ e.title }}</h6>
-    <div class="small text-muted">
-      {{ e.category|title }} · {{ e.starts_at.strftime('%d %b %H:%M') }} · {{ e.status }}
+<a href="/events/{{ e.id }}" class="text-decoration-none d-block">
+  <div class="glass-card glass-card-hover py-3 px-3">
+    <div class="d-flex align-items-center gap-3">
+      <!-- Gradient Date Badge -->
+      <div class="text-center rounded-4 p-2 d-flex flex-column justify-content-center"
+           style="min-width: 62px; height: 64px; background: rgba(99, 102, 241, 0.18); border: 1px solid rgba(99, 102, 241, 0.35);">
+        <span class="font-monospace fw-bold text-uppercase" style="font-size: 0.7rem; color: #c084fc;">
+          {{ e.starts_at.strftime('%b') }}
+        </span>
+        <span class="fs-4 fw-extrabold text-white lh-1">
+          {{ e.starts_at.strftime('%d') }}
+        </span>
+      </div>
+
+      <!-- Event Details -->
+      <div class="flex-grow-1 overflow-hidden">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span class="badge rounded-pill" style="background: rgba(255, 255, 255, 0.1); font-size: 0.7rem; font-weight: 600;">
+            {{ e.category|title }}
+          </span>
+          <span class="small text-subtle" style="font-size: 0.75rem;">
+            <i class="bi bi-clock me-1"></i>{{ e.starts_at.strftime('%H:%M') }} – {{ e.ends_at.strftime('%H:%M') }}
+          </span>
+        </div>
+        <h6 class="text-white text-truncate mb-1" style="font-weight: 700;">{{ e.title }}</h6>
+        <p class="text-subtle small text-truncate mb-0" style="font-size: 0.8rem;">
+          {{ e.description or 'No description provided.' }}
+        </p>
+      </div>
+
+      <!-- Chevron -->
+      <div class="text-subtle">
+        <i class="bi bi-chevron-right fs-5"></i>
+      </div>
     </div>
-  </div></div>
+  </div>
 </a>
 {% else %}
-<p class="text-muted">No events match.</p>
+<div class="glass-card text-center py-5">
+  <div class="mb-3">
+    <i class="bi bi-calendar-x fs-1 text-subtle"></i>
+  </div>
+  <h6>No Events Found</h6>
+  <p class="text-subtle small mb-3">Try clearing search filters or check back later.</p>
+  <a href="/events" class="btn btn-glass btn-sm">Clear Filters</a>
+</div>
 {% endfor %}
 {% endblock %}
