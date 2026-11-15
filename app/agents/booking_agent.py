@@ -62,6 +62,7 @@ class BookingAgent:
         ))
 
     # ---------- REQUEST: book N tickets ----------
+        # ---------- REQUEST: book N tickets ----------
     async def _book(self, msg: Message):
         c = msg.content
         qty = int(c["quantity"])
@@ -84,7 +85,13 @@ class BookingAgent:
             if event.starts_at <= _now():
                 return self._refuse(msg, "Event has already started")
 
-            # ATOMIC seat allocation — the whole anti-overbooking story
+            # Capture everything we need AFTER the session (commit expires it)
+            event_id = event.id
+            event_title = event.title
+            category_name = cat.name
+            remaining = cat.quantity - cat.sold
+
+            # ATOMIC seat allocation
             res = db.execute(
                 text("UPDATE ticketcategory SET sold = sold + :q "
                      "WHERE id = :id AND sold + :q <= quantity"),
@@ -92,32 +99,32 @@ class BookingAgent:
             )
             if res.rowcount == 0:
                 db.rollback()
-                # sold out → hand the user to the waitlist
                 await self.bus.send(make(
                     self.name, "WaitlistAgent", "INFORM",
                     {"action": "freed_hint",
-                     "event_id": event.id, "category_id": cat_id},
+                     "event_id": event_id, "category_id": cat_id},
                     msg.conversation_id,
                 ))
                 return self._refuse(
-                    msg, f"Only {cat.quantity - cat.sold} tickets left "
-                         f"in '{cat.name}' — added to waitlist? (offer)")
+                    msg, f"Only {remaining} tickets left "
+                         f"in '{category_name}' — added to waitlist? (offer)")
 
             amount = round(qty * cat.price, 2)
             ref = "PAY-" + secrets.token_hex(6).upper()
             booking = Booking(
-                user_id=user_id, event_id=event.id, category_id=cat_id,
+                user_id=user_id, event_id=event_id, category_id=cat_id,
                 quantity=qty, amount=amount, payment_ref=ref,
             )
             db.add(booking)
             db.commit()
             db.refresh(booking)
+            booking_id = booking.id
 
         # ask TicketAgent to mint the QR codes
         ticket_reply = await self.bus.send(make(
             self.name, "TicketAgent", "REQUEST",
-            {"action": "issue", "booking_id": booking.id,
-             "event_id": event.id, "quantity": qty},
+            {"action": "issue", "booking_id": booking_id,
+             "event_id": event_id, "quantity": qty},
             msg.conversation_id,
         ))
         codes = (ticket_reply.content or {}).get("codes", []) if ticket_reply else []
@@ -125,13 +132,13 @@ class BookingAgent:
         await self._notify(
             user_id,
             "Booking confirmed",
-            f"{qty} × {cat.name} for '{event.title}'. "
+            f"{qty} × {category_name} for '{event_title}'. "
             f"Paid £{amount:.2f} (ref {ref}). {len(codes)} ticket(s) issued.",
             msg.conversation_id,
         )
 
         return make(self.name, msg.sender, "AGREE", {
-            "booking_id": booking.id,
+            "booking_id": booking_id,
             "payment_ref": ref,
             "amount": amount,
             "tickets": codes,

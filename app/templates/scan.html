@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Scan{% endblock %}
+{% block content %}
+<h4>Scan Ticket</h4>
+<div id="reader" style="width:100%"></div>
+<div id="result" class="mt-2"></div>
+<hr>
+<form id="manual" class="d-flex gap-2 mt-3">
+  <input name="code" class="form-control" placeholder="Paste code" required>
+  <button class="btn btn-primary">Submit</button>
+</form>
+{% endblock %}
+{% block scripts %}
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+const result = document.getElementById("result");
+
+async function sendCode(code) {
+  result.innerHTML = '<div class="alert alert-info">Checking…</div>';
+  try {
+    const r = await fetch("/api/scan", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({code})
+    });
+    const j = await r.json();
+    if (r.status === 401 || r.status === 403) {
+      result.innerHTML = '<div class="alert alert-warning">Login as staff/admin first.</div>';
+      return;
+    }
+    const ok = j.performative === "AGREE";
+    result.innerHTML = `<div class="alert alert-${ok ? 'success' : 'danger'}">
+      <strong>${ok ? 'ADMITTED' : 'REFUSED'}</strong><br>
+      ${ok ? 'Ticket ' + j.ticket_id : (j.reason || j.detail || 'Error')}
+    </div>`;
+  } catch (err) {
+    result.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+  }
+}
+
+new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 }).render(sendCode);
+
+document.getElementById("manual").addEventListener("submit", e => {
+  e.preventDefault();
+  sendCode(e.target.code.value);
+});
+</script>
+{% endblock %}

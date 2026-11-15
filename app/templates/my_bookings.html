@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Bookings{% endblock %}
+{% block content %}
+<h4>My Bookings</h4>
+{% for b in bookings %}
+<div class="card mb-2"><div class="card-body py-2">
+  <div class="d-flex justify-content-between align-items-center gap-2">
+    <div>
+      <strong>{{ b.event_title }}</strong> — {{ b.quantity }}× {{ b.category_name }}<br>
+      <span class="small text-muted">{{ b.status }} · ref {{ b.payment_ref }}</span>
+      {% if b.refund_amount > 0 %}
+      <br><span class="small">Refund: £{{ '%.2f'|format(b.refund_amount) }}</span>
+      {% endif %}
+    </div>
+    {% if b.status == 'confirmed' %}
+    <form method="post" action="/bookings/{{ b.id }}/cancel">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn btn-outline-danger btn-sm"
+              onclick="return confirm('Cancel this booking?')">Cancel</button>
+    </form>
+    {% endif %}
+  </div>
+</div></div>
+{% else %}
+<p class="text-muted">No bookings.</p>
+{% endfor %}
+{% endblock %}

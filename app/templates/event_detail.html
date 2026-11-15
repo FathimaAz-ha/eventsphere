@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ event.title }}{% endblock %}
+{% block content %}
+<h4>{{ event.title }}</h4>
+<p class="text-muted small">
+  {{ event.category|title }} · {{ event.starts_at.strftime('%d %b %Y %H:%M') }} – {{ event.ends_at.strftime('%H:%M') }}
+</p>
+<p>{{ event.description }}</p>
+
+<h6>Tickets</h6>
+{% for c in categories %}
+<div class="card mb-2"><div class="card-body py-2">
+  <div class="d-flex justify-content-between align-items-center gap-2">
+    <div>
+      <strong>{{ c.name }}</strong> — £{{ '%.2f'|format(c.price) }}<br>
+      <span class="small text-muted">{{ c.quantity - c.sold }} left</span>
+    </div>
+    {% if user %}
+      {% if c.quantity - c.sold > 0 %}
+      <form method="post" action="/bookings/create" class="d-flex gap-2">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="hidden" name="category_id" value="{{ c.id }}">
+        <input name="quantity" type="number" min="1" max="6" value="1"
+               class="form-control form-control-sm" style="width:70px">
+        <button class="btn btn-primary btn-sm">Book</button>
+      </form>
+      {% else %}
+      <form method="post" action="/bookings/create" class="d-flex gap-2">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="hidden" name="category_id" value="{{ c.id }}">
+        <input name="quantity" type="number" min="1" max="6" value="1"
+               class="form-control form-control-sm" style="width:70px">
+        <button class="btn btn-outline-secondary btn-sm">Waitlist</button>
+      </form>
+      {% endif %}
+    {% else %}
+      <a href="/login" class="btn btn-outline-primary btn-sm">Sign in</a>
+    {% endif %}
+  </div>
+</div></div>
+{% endfor %}
+{% endblock %}

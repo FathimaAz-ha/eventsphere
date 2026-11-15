@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<h4>Sign in</h4>
+<form method="post" action="/login" class="mt-3">
+  <div class="mb-2"><label class="form-label">Email</label>
+    <input name="email" type="email" class="form-control" required></div>
+  <div class="mb-3"><label class="form-label">Password</label>
+    <input name="password" type="password" class="form-control" required></div>
+  <button class="btn btn-primary w-100">Sign in</button>
+</form>
+<p class="mt-3 small text-muted">Demo accounts:
+  <code>admin@eventsphere.local/admin123</code>,
+  <code>staff@eventsphere.local/staff123</code>,
+  <code>demo@eventsphere.local/demo1234</code></p>
+{% endblock %}
