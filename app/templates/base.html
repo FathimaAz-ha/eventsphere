@@ -35,7 +35,7 @@
       font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       color: #f8fafc;
       overflow-x: hidden;
-      padding-bottom: 84px; /* space for flush bottom bar */
+      padding-bottom: 96px; /* space for the floating dock */
       position: relative;
     }
 
@@ -231,24 +231,25 @@
       color: #fff;
     }
 
-    /* Native-style Mobile Bottom Navigation Dock (Role-Based & Never Crowded) */
+    /* Floating Glass Capsule Bottom Navigation Dock */
     .mobile-bottom-nav {
       position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      width: 100%;
-      background: rgba(13, 19, 33, 0.96);
-      backdrop-filter: blur(25px);
-      -webkit-backdrop-filter: blur(25px);
-      border-top: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 20px 20px 0 0;
-      padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)) 8px;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 24px);
+      max-width: 500px;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 28px;
+      padding: 6px 8px;
       z-index: 1040;
       display: flex;
       justify-content: space-around;
       align-items: center;
-      box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.45);
+      box-shadow: 0 14px 35px rgba(0, 0, 0, 0.6);
     }
     .nav-tab-item {
       flex: 1;
@@ -256,12 +257,12 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      color: rgba(241, 245, 249, 0.55);
+      color: rgba(241, 245, 249, 0.6);
       text-decoration: none;
-      font-size: 0.68rem;
+      font-size: 0.7rem;
       font-weight: 600;
-      padding: 4px 2px;
-      border-radius: 12px;
+      padding: 6px 4px;
+      border-radius: 18px;
       transition: all 0.2s ease;
       min-width: 0;
     }
@@ -269,6 +270,7 @@
       font-size: 1.25rem;
       margin-bottom: 2px;
       line-height: 1;
+      transition: transform 0.2s ease;
     }
     .nav-tab-item span {
       white-space: nowrap;
@@ -277,12 +279,17 @@
       max-width: 100%;
       line-height: 1.1;
     }
+    .nav-tab-item:hover {
+      color: #fff;
+    }
     .nav-tab-item.active {
-      color: #c084fc;
-      background: rgba(99, 102, 241, 0.22);
+      color: #fff;
+      background: rgba(99, 102, 241, 0.32);
+      box-shadow: 0 0 14px rgba(99, 102, 241, 0.38);
     }
     .nav-tab-item.active i {
-      transform: scale(1.08);
+      transform: scale(1.1);
+      color: #c084fc;
     }
 
     /* Alerts */
