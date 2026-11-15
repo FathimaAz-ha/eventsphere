@@ -84,6 +84,9 @@
       padding: 0 14px;
       width: 100%;
     }
+    main.app-shell {
+      padding-bottom: 110px; /* guarantees ample scrolling clearance above the floating capsule dock */
+    }
 
     /* Glass Top Header */
     .app-topbar {
@@ -199,6 +202,8 @@
       color: #fff !important;
       box-shadow: 0 4px 18px rgba(99, 102, 241, 0.35) !important;
       transition: all 0.2s ease !important;
+      touch-action: manipulation;
+      cursor: pointer;
     }
     .btn-primary:active {
       transform: scale(0.98);
@@ -217,6 +222,8 @@
       align-items: center;
       justify-content: center;
       gap: 6px;
+      touch-action: manipulation;
+      cursor: pointer;
     }
     .btn-glass:hover {
       background: rgba(255, 255, 255, 0.16);
@@ -229,6 +236,8 @@
       color: #fca5a5;
       border-radius: 12px;
       font-weight: 600;
+      touch-action: manipulation;
+      cursor: pointer;
     }
     .btn-glass-danger:hover {
       background: rgba(239, 68, 68, 0.3);
@@ -503,7 +512,8 @@
       const currentPath = window.location.pathname;
       document.querySelectorAll(".mobile-bottom-nav a").forEach(tab => {
         const path = tab.getAttribute("data-path");
-        if (path && (currentPath === path || (path !== "/events" && currentPath.startsWith(path)))) {
+        if (!path) return;
+        if (currentPath === path || (path !== "/" && currentPath.startsWith(path))) {
           tab.classList.add("active");
         } else if (path === "/events" && currentPath === "/") {
           tab.classList.add("active");

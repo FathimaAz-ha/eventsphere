@@ -38,57 +38,108 @@
 </div>
 
 <!-- Available Tickets Section -->
-<h5 class="text-white mb-3">Select Tickets</h5>
+<h5 class="text-white mb-3 d-flex align-items-center gap-2">
+  <i class="bi bi-ticket-perforated text-primary"></i> Select Tickets
+</h5>
+
 {% for c in categories %}
 {% set remaining = c.quantity - c.sold %}
-<div class="glass-card mb-2">
-  <div class="d-flex justify-content-between align-items-center gap-3">
+<div class="glass-card mb-3 p-3">
+  <!-- Tier Header: Name, Price, and Availability Badge -->
+  <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
     <div>
-      <div class="d-flex align-items-center gap-2">
-        <h6 class="text-white mb-0" style="font-weight: 700;">{{ c.name }}</h6>
-        <span class="badge rounded-pill font-monospace" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; font-size: 0.7rem;">
-          {% if remaining > 0 %}{{ remaining }} available{% else %}Sold Out{% endif %}
-        </span>
-      </div>
-      <div class="fs-5 fw-bold text-white mt-1">
+      <h6 class="text-white mb-1 fw-bold fs-6">{{ c.name }}</h6>
+      <div class="fs-4 fw-bold text-white font-monospace">
         £{{ '%.2f'|format(c.price) }}
       </div>
     </div>
-
-    <div>
-      {% if user %}
-        {% if remaining > 0 %}
-        <form method="post" action="/bookings/create" class="d-flex align-items-center gap-2">
-          <input type="hidden" name="csrf" value="{{ csrf }}">
-          <input type="hidden" name="category_id" value="{{ c.id }}">
-          <select name="quantity" class="form-select form-select-sm" style="width: 70px;">
-            {% for n in range(1, [remaining + 1, 7]|min) %}
-            <option value="{{ n }}">{{ n }}</option>
-            {% endfor %}
-          </select>
-          <button class="btn btn-primary btn-sm px-3" style="font-size: 0.85rem;">
-            Book
-          </button>
-        </form>
-        {% else %}
-        <form method="post" action="/bookings/create" class="d-flex align-items-center gap-2">
-          <input type="hidden" name="csrf" value="{{ csrf }}">
-          <input type="hidden" name="category_id" value="{{ c.id }}">
-          <input type="hidden" name="quantity" value="1">
-          <button class="btn btn-glass btn-sm px-3" style="color: #fde047; border-color: rgba(250, 204, 21, 0.4);">
-            <i class="bi bi-hourglass-split me-1"></i> Waitlist
-          </button>
-        </form>
-        {% endif %}
+    <div class="text-end">
+      {% if remaining > 0 %}
+        <span class="badge rounded-pill font-monospace" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; font-size: 0.75rem; border: 1px solid rgba(14, 165, 233, 0.35);">
+          {{ remaining }} available
+        </span>
       {% else %}
-        <a href="/login" class="btn btn-glass btn-sm px-3">
-          Sign In
-        </a>
+        <span class="badge rounded-pill bg-danger-subtle text-danger" style="font-size: 0.75rem;">
+          Sold Out
+        </span>
       {% endif %}
     </div>
   </div>
+
+  <hr style="border-color: rgba(255, 255, 255, 0.1); margin: 10px 0 14px 0;">
+
+  <!-- Booking Action Form: Fully Responsive for all mobile screen sizes -->
+  {% if user %}
+    {% if remaining > 0 %}
+    <form method="post" action="/bookings/create" class="booking-form" onsubmit="handleBookingSubmit(this)">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="category_id" value="{{ c.id }}">
+      
+      <div class="d-flex gap-2 align-items-center">
+        <!-- Quantity Selector with label -->
+        <div style="flex: 0 0 95px;">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text text-subtle border-secondary px-2" style="background: rgba(255, 255, 255, 0.05); font-size: 0.75rem;">Qty</span>
+            <select name="quantity" class="form-select form-select-sm" style="min-height: 44px; font-weight: 600; border-radius: 0 12px 12px 0 !important;">
+              {% for n in range(1, [remaining + 1, 7]|min) %}
+              <option value="{{ n }}">{{ n }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Book Ticket Button -->
+        <div class="flex-grow-1">
+          <button type="submit" class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2 py-2" style="min-height: 44px; font-size: 0.95rem; font-weight: 700;">
+            <i class="bi bi-ticket-perforated-fill"></i>
+            <span>Book Tickets</span>
+          </button>
+        </div>
+      </div>
+    </form>
+    {% else %}
+    <form method="post" action="/bookings/create" onsubmit="handleWaitlistSubmit(this)">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="category_id" value="{{ c.id }}">
+      <input type="hidden" name="quantity" value="1">
+      <button type="submit" class="btn btn-glass w-100 d-flex align-items-center justify-content-center gap-2 py-2" style="min-height: 44px; color: #fde047; border-color: rgba(250, 204, 21, 0.4); font-size: 0.92rem; font-weight: 600;">
+        <i class="bi bi-hourglass-split"></i>
+        <span>Join Waitlist</span>
+      </button>
+    </form>
+    {% endif %}
+  {% else %}
+    <a href="/login" class="btn btn-glass w-100 d-flex align-items-center justify-content-center gap-2 py-2" style="min-height: 44px; font-size: 0.92rem; font-weight: 600;">
+      <i class="bi bi-box-arrow-in-right"></i>
+      <span>Sign In to Book</span>
+    </a>
+  {% endif %}
 </div>
 {% else %}
-<p class="text-subtle small">No tickets currently configured for this event.</p>
+<div class="glass-card text-center py-4">
+  <p class="text-subtle small mb-0">No tickets currently configured for this event.</p>
+</div>
 {% endfor %}
+
+<!-- Safety spacer for mobile scrolling clearance -->
+<div style="height: 30px;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function handleBookingSubmit(form) {
+  const btn = form.querySelector('button[type="submit"]');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Booking...';
+  }
+}
+function handleWaitlistSubmit(form) {
+  const btn = form.querySelector('button[type="submit"]');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Joining Waitlist...';
+  }
+}
+</script>
 {% endblock %}
