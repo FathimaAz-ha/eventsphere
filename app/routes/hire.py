@@ -93,7 +93,7 @@ def pending_hires(admin: User = Depends(require_role("admin")),
 
 
 @router.post("/{hire_id}/decide")
-def decide_hire(hire_id: int, body: DecideIn,
+def decide_hire(hire_id: int, body: DecideIn, request: Request,
                 admin: User = Depends(require_role("admin")),
                 db: Session = Depends(get_session)):
     h = db.get(HireRequest, hire_id)
@@ -101,7 +101,15 @@ def decide_hire(hire_id: int, body: DecideIn,
         raise HTTPException(404, "Hire request not found")
     if h.status != "escalated":
         raise HTTPException(400, "Not pending admin decision")
-    h.status = "confirmed" if body.approve else "rejected"
+    if body.approve:
+        venue_agent = getattr(request.app.state, "agents", {}).get("VenueAgent")
+        if venue_agent:
+            clash = venue_agent._clashes(db, h.venue_id, h.starts_at, h.ends_at, ignore_hire_id=h.id)
+            if clash:
+                raise HTTPException(409, f"Cannot approve: clashes with '{clash.title}'")
+        h.status = "confirmed"
+    else:
+        h.status = "rejected"
     h.decided_by = f"admin:{admin.email}"
     db.add(h); db.commit()
     return {"ok": True, "status": h.status}

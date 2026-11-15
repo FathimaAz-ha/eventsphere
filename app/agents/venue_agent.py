@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from sqlmodel import Session, select
 
 from .bus import Message, MessageBus, make
-from ..models import Venue, Event, AgentState
+from ..models import Venue, Event, AgentState, HireRequest
 
 BUFFER = timedelta(minutes=30)
 WEEKEND_MULTIPLIER = 1.2
@@ -35,23 +35,39 @@ class VenueAgent:
         return make(self.name, msg.sender, "PROPOSE",
                     {"reason": reason, "alternatives": alternatives}, msg.conversation_id)
 
-    def _clashes(self, db, venue_id, start, end, ignore_event_id=None):
-        q = select(Event).where(Event.venue_id == venue_id,
-                                Event.status == "published")
-        for e in db.exec(q):
+    def _clashes(self, db, venue_id, start, end, ignore_event_id=None, ignore_hire_id=None):
+        q_events = select(Event).where(Event.venue_id == venue_id,
+                                       Event.status == "published")
+        for e in db.exec(q_events):
             if ignore_event_id and e.id == ignore_event_id:
                 continue
             if start < e.ends_at + BUFFER and e.starts_at - BUFFER < end:
                 return e
+
+        q_hires = select(HireRequest).where(
+            HireRequest.venue_id == venue_id,
+            HireRequest.status.in_(["confirmed", "escalated"]),
+        )
+        for h in db.exec(q_hires):
+            if ignore_hire_id and h.id == ignore_hire_id:
+                continue
+            if start < h.ends_at + BUFFER and h.starts_at - BUFFER < end:
+                return h
+
         return None
 
     def _free_slots(self, db, venue_id, duration, after, want=3):
         events = db.exec(select(Event).where(Event.venue_id == venue_id,
                                              Event.status == "published")).all()
-        slots, t, limit = [], after, after + timedelta(days=14)
+        hires = db.exec(select(HireRequest).where(
+            HireRequest.venue_id == venue_id,
+            HireRequest.status.in_(["confirmed", "escalated"]))).all()
+        all_bookings = list(events) + list(hires)
+        slots, t = [], max(after, datetime.utcnow())
+        limit = t + timedelta(days=14)
         while t < limit and len(slots) < want:
             end = t + duration
-            if not any(t < e.ends_at + BUFFER and e.starts_at - BUFFER < end for e in events):
+            if not any(t < b.ends_at + BUFFER and b.starts_at - BUFFER < end for b in all_bookings):
                 slots.append({"start": t.isoformat(), "end": end.isoformat()})
             t += timedelta(minutes=30)
         return slots
@@ -64,7 +80,14 @@ class VenueAgent:
     # ---------- REQUEST: can this event take this slot? ----------
     def _check_slot(self, msg: Message) -> Message:
         c = msg.content
-        start, end = datetime.fromisoformat(c["start"]), datetime.fromisoformat(c["end"])
+        try:
+            start = datetime.fromisoformat(c["start"])
+            end = datetime.fromisoformat(c["end"])
+        except (ValueError, KeyError, TypeError) as e:
+            return self._refuse(msg, f"Invalid date format: {e}")
+
+        if start < datetime.utcnow():
+            return self._refuse(msg, "Event start time cannot be in the past")
         if end <= start:
             return self._refuse(msg, "End time must be after start time")
 
@@ -76,7 +99,7 @@ class VenueAgent:
                 return self._refuse(
                     msg, f"Total tickets ({c['total_tickets']}) exceed venue "
                          f"capacity ({venue.capacity})")
-            clash = self._clashes(db, venue.id, start, end, c.get("ignore_event_id"))
+            clash = self._clashes(db, venue.id, start, end, ignore_event_id=c.get("ignore_event_id"))
             if clash:
                 return self._refuse(
                     msg, f"Clashes with '{clash.title}' "
@@ -90,7 +113,22 @@ class VenueAgent:
     # ---------- REQUEST: private hire ----------
     async def _hire_request(self, msg: Message) -> Message:
         c = msg.content
-        start, end = datetime.fromisoformat(c["start"]), datetime.fromisoformat(c["end"])
+        try:
+            start = datetime.fromisoformat(c["start"])
+            end = datetime.fromisoformat(c["end"])
+        except (ValueError, KeyError, TypeError) as e:
+            return self._refuse(msg, f"Invalid date format: {e}")
+
+        now = datetime.utcnow()
+        if start < now:
+            return self._refuse(msg, "Booking start time cannot be in the past")
+        if end <= start:
+            return self._refuse(msg, "End time must be after start time")
+
+        guests = int(c.get("guests", 0))
+        if guests <= 0:
+            return self._refuse(msg, "Number of guests must be at least 1")
+
         duration = end - start
 
         with Session(self.engine) as db:
@@ -101,16 +139,19 @@ class VenueAgent:
                 return self._refuse(msg, f"'{venue.name}' is not open for private hire")
 
             # too many guests -> propose other venues
-            if c["guests"] > venue.capacity:
+            if guests > venue.capacity:
                 others = db.exec(select(Venue).where(Venue.open_for_hire == True,
-                                                     Venue.capacity >= c["guests"])).all()
-                if not others:
-                    return self._refuse(msg, f"No venue can hold {c['guests']} guests")
+                                                     Venue.capacity >= guests)).all()
+                available_others = [v for v in others if not self._clashes(db, v.id, start, end)]
+                if not available_others:
+                    return self._refuse(
+                        msg,
+                        f"'{venue.name}' holds only {venue.capacity} guests, and no larger venues are available at this time")
                 return self._propose(
                     msg,
                     f"'{venue.name}' holds only {venue.capacity} guests",
                     [{"venue_id": v.id, "venue_name": v.name,
-                      "start": c["start"], "end": c["end"]} for v in others[:3]])
+                      "start": c["start"], "end": c["end"]} for v in available_others[:3]])
 
             clash = self._clashes(db, venue.id, start, end)
             if clash:
@@ -124,15 +165,17 @@ class VenueAgent:
             price = self._price(venue, start, end)
 
             # escalation rules -> admin decides
-            escalate = (c["guests"] > venue.capacity * 0.8
-                        or start - datetime.utcnow() < timedelta(hours=24)
-                        or duration > timedelta(hours=6))
-            if escalate:
-                reason = ("large booking" if c["guests"] > venue.capacity * 0.8 else
-                          "short notice" if start - datetime.utcnow() < timedelta(hours=24) else
-                          "long duration")
+            reasons = []
+            if guests > venue.capacity * 0.8:
+                reasons.append("large booking (>80% capacity)")
+            if start - datetime.utcnow() < timedelta(hours=24):
+                reasons.append("short notice (<24h)")
+            if duration > timedelta(hours=6):
+                reasons.append("long duration (>6h)")
+
+            if reasons:
                 return make(self.name, msg.sender, "PROPOSE",
-                            {"reason": f"Escalated for admin approval: {reason}",
+                            {"reason": f"Escalated for admin approval: {', '.join(reasons)}",
                              "escalate": True, "price": price,
                              "alternatives": []},
                             msg.conversation_id)

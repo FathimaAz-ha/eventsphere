@@ -117,6 +117,102 @@ def test_venue_agent_proposes_alternatives_on_clash(env):
     assert len(reply.content["alternatives"]) >= 1
 
 
+def test_venue_agent_prevents_hire_double_booking(env):
+    """Ensure confirmed private hires block subsequent hire requests."""
+    from app.models import HireRequest
+    engine, bus, _ = env
+    v_id, _, _ = _seed(engine, capacity=100, open_for_hire=True, days_ahead=5)
+    start = datetime.utcnow() + timedelta(days=8)
+    end = start + timedelta(hours=3)
+
+    # First hire is confirmed
+    with Session(engine) as db:
+        h = HireRequest(user_id=1, venue_id=v_id, starts_at=start, ends_at=end,
+                        purpose="Wedding Reception", guests=30, status="confirmed")
+        db.add(h); db.commit()
+
+    # Second user requests overlapping hire
+    reply = run(bus.send(make(
+        "Test", "VenueAgent", "REQUEST",
+        {"action": "hire_request", "venue_id": v_id,
+         "start": (start + timedelta(hours=1)).isoformat(),
+         "end": (end + timedelta(hours=1)).isoformat(),
+         "purpose": "Birthday Party", "guests": 25}, "conv-hire-2")))
+    assert reply.performative == "PROPOSE"
+    assert "booked by" in reply.content["reason"].lower()
+    assert "Wedding Reception" in reply.content["reason"]
+
+
+def test_venue_agent_validates_dates_and_times(env):
+    """Ensure past start times and inverted end times are rejected."""
+    engine, bus, _ = env
+    v_id, _, _ = _seed(engine, capacity=100, open_for_hire=True, days_ahead=5)
+
+    # Past date
+    past_start = datetime.utcnow() - timedelta(days=1)
+    past_end = past_start + timedelta(hours=2)
+    reply = run(bus.send(make(
+        "Test", "VenueAgent", "REQUEST",
+        {"action": "hire_request", "venue_id": v_id,
+         "start": past_start.isoformat(), "end": past_end.isoformat(),
+         "purpose": "Party", "guests": 10}, "conv-past")))
+    assert reply.performative == "REFUSE"
+    assert "past" in reply.content["reason"].lower()
+
+    # End before start
+    fut_start = datetime.utcnow() + timedelta(days=3)
+    fut_end = fut_start - timedelta(hours=1)
+    reply = run(bus.send(make(
+        "Test", "VenueAgent", "REQUEST",
+        {"action": "hire_request", "venue_id": v_id,
+         "start": fut_start.isoformat(), "end": fut_end.isoformat(),
+         "purpose": "Party", "guests": 10}, "conv-inverted")))
+    assert reply.performative == "REFUSE"
+    assert "after start time" in reply.content["reason"].lower()
+
+
+def test_venue_agent_escalation_rules(env):
+    """Large booking (>80%), short notice (<24h), and long duration (>6h) must escalate."""
+    engine, bus, _ = env
+    v_id, _, _ = _seed(engine, capacity=100, open_for_hire=True, days_ahead=5)
+
+    # Large booking (>80%)
+    start = datetime.utcnow() + timedelta(days=4)
+    end = start + timedelta(hours=3)
+    reply = run(bus.send(make(
+        "Test", "VenueAgent", "REQUEST",
+        {"action": "hire_request", "venue_id": v_id,
+         "start": start.isoformat(), "end": end.isoformat(),
+         "purpose": "Big Gala", "guests": 85}, "conv-large")))
+    assert reply.performative == "PROPOSE"
+    assert reply.content.get("escalate") is True
+    assert "large booking" in reply.content["reason"]
+
+    # Short notice (<24h)
+    short_start = datetime.utcnow() + timedelta(hours=12)
+    short_end = short_start + timedelta(hours=2)
+    reply2 = run(bus.send(make(
+        "Test", "VenueAgent", "REQUEST",
+        {"action": "hire_request", "venue_id": v_id,
+         "start": short_start.isoformat(), "end": short_end.isoformat(),
+         "purpose": "Urgent Meet", "guests": 20}, "conv-short")))
+    assert reply2.performative == "PROPOSE"
+    assert reply2.content.get("escalate") is True
+    assert "short notice" in reply2.content["reason"]
+
+    # Long duration (>6h)
+    long_start = datetime.utcnow() + timedelta(days=7)
+    long_end = long_start + timedelta(hours=8)
+    reply3 = run(bus.send(make(
+        "Test", "VenueAgent", "REQUEST",
+        {"action": "hire_request", "venue_id": v_id,
+         "start": long_start.isoformat(), "end": long_end.isoformat(),
+         "purpose": "All-day Conference", "guests": 30}, "conv-long")))
+    assert reply3.performative == "PROPOSE"
+    assert reply3.content.get("escalate") is True
+    assert "long duration" in reply3.content["reason"]
+
+
 # ============================================================
 # BookingAgent — 4 tests
 # ============================================================

@@ -83,6 +83,10 @@ class HireRequest(SQLModel, table=True):
     alternatives: str = ""
     decided_by: str = ""
 
+    @property
+    def title(self) -> str:
+        return f"Private Hire ({self.purpose})"
+
 
 class WaitlistEntry(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

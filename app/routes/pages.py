@@ -55,6 +55,7 @@ def _csrf_or_403(sess, token: str):
 def _qr(text: str) -> str:
     img = qrcode.make(text)
     buf = io.BytesIO()
+    # pyrefly: ignore[unexpected-keyword]
     img.save(buf, format="PNG")
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
@@ -344,17 +345,25 @@ def dashboard_page(request: Request,
 
 
 @router.post("/dashboard/hire/{hire_id}/approve")
-def hire_approve(hire_id: int, csrf: str = Form(""),
+def hire_approve(hire_id: int, request: Request, csrf: str = Form(""),
                  user=Depends(require_role("admin")),
                  sess=Depends(current_session),
                  db: Session = Depends(get_session)):
     _csrf_or_403(sess, csrf)
     h = db.get(HireRequest, hire_id)
-    if h and h.status == "escalated":
-        h.status = "confirmed"
-        h.decided_by = f"admin:{user.email}"
-        db.add(h); db.commit()
-    return _redirect("/dashboard", "Approved", "success")
+    if not h or h.status != "escalated":
+        return _redirect("/dashboard", "Hire request not found or not pending decision", "danger")
+
+    venue_agent = getattr(request.app.state, "agents", {}).get("VenueAgent")
+    if venue_agent:
+        clash = venue_agent._clashes(db, h.venue_id, h.starts_at, h.ends_at, ignore_hire_id=h.id)
+        if clash:
+            return _redirect("/dashboard", f"Cannot approve Hire #{hire_id}: clashes with '{clash.title}'", "danger")
+
+    h.status = "confirmed"
+    h.decided_by = f"admin:{user.email}"
+    db.add(h); db.commit()
+    return _redirect("/dashboard", f"Hire #{hire_id} approved", "success")
 
 
 @router.post("/dashboard/hire/{hire_id}/reject")
