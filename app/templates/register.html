@@ -3,6 +3,10 @@
 {% block content %}
 <div class="glass-card mt-3">
   <div class="text-center mb-4">
+    <div class="d-inline-flex p-3 rounded-circle mb-2"
+      style="background: rgba(236, 72, 153, 0.2); border: 1px solid rgba(236, 72, 153, 0.4);">
+      <i class="bi bi-person-plus fs-2" style="color: #f472b6;"></i>
+    </div>
     <h4 class="mb-1">Create Account</h4>
     <p class="text-subtle small mb-0">Join EventSphere to discover and book venues</p>
   </div>
@@ -21,12 +25,13 @@
       <input name="password" type="password" class="form-control" placeholder="••••••••" required minlength="6">
     </div>
     <button class="btn btn-primary w-100 py-2 mb-3">
-      Register
+      <i class="bi bi-check2-circle me-1"></i> Register &amp; Explore
     </button>
   </form>
 
   <div class="text-center small text-subtle">
-    Already have an account? <a href="/login" class="text-decoration-none" style="color: #c084fc; font-weight: 600;">Sign in</a>
+    Already have an account? <a href="/login" class="text-decoration-none"
+      style="color: #c084fc; font-weight: 600;">Sign in</a>
   </div>
 </div>
 {% endblock %}

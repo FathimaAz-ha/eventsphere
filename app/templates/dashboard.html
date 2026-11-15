@@ -1,18 +1,26 @@
 {% extends "base.html" %}
 {% block title %}Admin Console{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <div>
-    <h4 class="mb-0">Admin Overview</h4>
-    <p class="text-subtle small mb-0">System metrics, approvals &amp; agent bus</p>
+<!-- Top Header & Quick Actions -->
+<div class="mb-3">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <div>
+      <h4 class="mb-0 text-white">Admin Console</h4>
+      <p class="text-subtle small mb-0">System metrics, approvals &amp; agent bus</p>
+    </div>
   </div>
-  <div class="d-flex gap-2">
-    <a href="/admin/event/new" class="btn btn-primary btn-sm py-1 px-3" style="font-size: 0.82rem;">
-      <i class="bi bi-calendar-plus me-1"></i> + Event
-    </a>
-    <a href="/admin/venue/new" class="btn btn-glass btn-sm py-1 px-3" style="font-size: 0.82rem;">
-      <i class="bi bi-building-add me-1"></i> + Venue
-    </a>
+  
+  <div class="row g-2 mt-1">
+    <div class="col-6">
+      <a href="/admin/event/new" class="btn btn-primary btn-sm w-100 py-2 d-flex align-items-center justify-content-center gap-1" style="font-size: 0.8rem;">
+        <i class="bi bi-calendar-plus"></i> + New Event
+      </a>
+    </div>
+    <div class="col-6">
+      <a href="/admin/venue/new" class="btn btn-glass btn-sm w-100 py-2 d-flex align-items-center justify-content-center gap-1" style="font-size: 0.8rem;">
+        <i class="bi bi-building-add"></i> + New Venue
+      </a>
+    </div>
   </div>
 </div>
 
@@ -20,124 +28,167 @@
 {% set total_rev = rows|map(attribute='revenue')|sum %}
 {% set total_sold = rows|map(attribute='sold')|sum %}
 {% set total_ins = rows|map(attribute='check_ins')|sum %}
-<div class="row g-2 mb-4">
+<div class="row g-2 mb-3">
   <div class="col-4">
-    <div class="glass-card py-2 px-2 text-center mb-0">
-      <span class="text-subtle small d-block" style="font-size: 0.72rem;">TOTAL REVENUE</span>
-      <span class="fs-6 fw-bold text-success font-monospace">£{{ '%.0f'|format(total_rev) }}</span>
+    <div class="glass-card py-2 px-1 text-center mb-0">
+      <span class="text-subtle font-monospace d-block" style="font-size: 0.65rem;">REVENUE</span>
+      <span class="fs-6 fw-bold text-success font-monospace mt-1 d-block">£{{ '%.0f'|format(total_rev) }}</span>
     </div>
   </div>
   <div class="col-4">
-    <div class="glass-card py-2 px-2 text-center mb-0">
-      <span class="text-subtle small d-block" style="font-size: 0.72rem;">TICKETS SOLD</span>
-      <span class="fs-6 fw-bold text-primary font-monospace">{{ total_sold }}</span>
+    <div class="glass-card py-2 px-1 text-center mb-0">
+      <span class="text-subtle font-monospace d-block" style="font-size: 0.65rem;">TICKETS</span>
+      <span class="fs-6 fw-bold text-primary font-monospace mt-1 d-block">{{ total_sold }}</span>
     </div>
   </div>
   <div class="col-4">
-    <div class="glass-card py-2 px-2 text-center mb-0">
-      <span class="text-subtle small d-block" style="font-size: 0.72rem;">CHECK-INS</span>
-      <span class="fs-6 fw-bold text-info font-monospace">{{ total_ins }}</span>
+    <div class="glass-card py-2 px-1 text-center mb-0">
+      <span class="text-subtle font-monospace d-block" style="font-size: 0.65rem;">CHECK-INS</span>
+      <span class="fs-6 fw-bold text-info font-monospace mt-1 d-block">{{ total_ins }}</span>
     </div>
   </div>
 </div>
 
-<!-- Escalated Hire Requests Section -->
-<div class="d-flex justify-content-between align-items-center mb-2">
-  <h6 class="text-white mb-0">
-    <i class="bi bi-exclamation-triangle text-warning me-1"></i> Escalated Hire Requests
-    <span class="badge rounded-pill bg-warning text-dark ms-1" style="font-size: 0.7rem;">{{ hires|length }}</span>
-  </h6>
+<!-- Mobile Segmented Tab Switcher -->
+<div class="segmented-control">
+  <button type="button" class="segmented-tab active" onclick="switchAdminTab('approvalsTab', this)">
+    Approvals {% if hires %}<span class="badge rounded-pill bg-warning text-dark ms-1" style="font-size: 0.68rem;">{{ hires|length }}</span>{% endif %}
+  </button>
+  <button type="button" class="segmented-tab" onclick="switchAdminTab('eventsTab', this)">
+    Events ({{ rows|length }})
+  </button>
+  <button type="button" class="segmented-tab" onclick="switchAdminTab('logsTab', this)">
+    Agent Logs
+  </button>
 </div>
 
-{% for h in hires %}
-<div class="glass-card mb-2 border border-warning" style="border-width: 1px !important;">
-  <div class="d-flex justify-content-between align-items-start mb-2">
-    <div>
-      <div class="d-flex align-items-center gap-2 mb-1">
-        <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis font-monospace" style="font-size: 0.7rem;">
-          HIRE #{{ h.id }}
-        </span>
-        <span class="text-white fw-bold small">{{ h.purpose }}</span>
-      </div>
-      <div class="small text-subtle" style="font-size: 0.78rem;">
-        Venue {{ h.venue_id }} &middot; {{ h.guests }} guests &middot; £{{ '%.2f'|format(h.price) }}
-      </div>
-    </div>
-    
-    <div class="d-flex gap-1">
-      <form method="post" action="/dashboard/hire/{{ h.id }}/approve">
-        <input type="hidden" name="csrf" value="{{ csrf }}">
-        <button class="btn btn-sm btn-success py-1 px-3" style="font-size: 0.78rem; border-radius: 10px;">
-          Approve
-        </button>
-      </form>
-      <form method="post" action="/dashboard/hire/{{ h.id }}/reject">
-        <input type="hidden" name="csrf" value="{{ csrf }}">
-        <button class="btn btn-sm btn-glass-danger py-1 px-2" style="font-size: 0.78rem; border-radius: 10px;">
-          Reject
-        </button>
-      </form>
-    </div>
-  </div>
-</div>
-{% else %}
-<div class="p-3 rounded-4 mb-4 text-center small text-subtle" style="background: rgba(255, 255, 255, 0.04); border: 1px dashed rgba(255, 255, 255, 0.12);">
-  <i class="bi bi-check-circle text-success me-1"></i> No hire requests currently pending admin escalation.
-</div>
-{% endfor %}
-
-<!-- Event Sales & Occupancy -->
-<h6 class="text-white mb-2 mt-4">Event Performance</h6>
-{% for r in rows %}
-<div class="glass-card py-2 px-3 mb-2">
-  <div class="d-flex justify-content-between align-items-center">
-    <div>
-      <div class="text-white fw-bold small mb-1">{{ r.title }}</div>
-      <div class="small text-subtle" style="font-size: 0.75rem;">
-        Sold: <span class="text-white">{{ r.sold }}</span> / {{ r.capacity }} &middot; Checked in: {{ r.check_ins }}
-      </div>
-    </div>
-    <div class="text-end">
-      <div class="text-success fw-bold font-monospace" style="font-size: 0.9rem;">
-        £{{ '%.2f'|format(r.revenue) }}
-      </div>
-      <span class="badge rounded-pill bg-light bg-opacity-10 text-white" style="font-size: 0.65rem;">
-        {{ r.status }}
+<!-- Tab 1: Escalated Hire Approvals -->
+<div id="approvalsTab" class="admin-tab-pane">
+  {% for h in hires %}
+  <div class="glass-card mb-3 p-3 border border-warning" style="border-width: 1px !important;">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis font-monospace" style="font-size: 0.72rem;">
+        HIRE #{{ h.id }}
+      </span>
+      <span class="fs-5 fw-bold text-white font-monospace">
+        £{{ '%.2f'|format(h.price) }}
       </span>
     </div>
-  </div>
-</div>
-{% endfor %}
 
-<!-- Agent Bus Message Log -->
-<div class="d-flex justify-content-between align-items-center mb-2 mt-4">
-  <h6 class="text-white mb-0">
-    <i class="bi bi-cpu text-info me-1"></i> Multi-Agent Message Bus
-  </h6>
-  <span class="small text-subtle" style="font-size: 0.75rem;">Last 50 messages</span>
-</div>
+    <h6 class="text-white mb-2" style="font-weight: 700;">{{ h.purpose }}</h6>
 
-<div class="p-3 rounded-4 mb-4 overflow-y-auto" style="max-height: 340px; background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.1);">
-  {% for m in messages %}
-  <div class="mb-2 pb-2" style="border-bottom: 1px solid rgba(255, 255, 255, 0.06); font-family: monospace; font-size: 0.72rem;">
-    <div class="d-flex align-items-center justify-content-between gap-1 mb-1">
-      <div>
-        <span class="badge {% if m.performative == 'AGREE' %}bg-success{% elif m.performative == 'REFUSE' %}bg-danger{% elif m.performative == 'PROPOSE' %}bg-warning text-dark{% elif m.performative == 'REQUEST' %}bg-primary{% else %}bg-info text-dark{% endif %} px-2 py-1"
-              style="font-size: 0.65rem;">
-          {{ m.performative }}
-        </span>
-        <strong class="text-white ms-1">{{ m.sender }}</strong>
-        <i class="bi bi-arrow-right text-subtle mx-1"></i>
-        <span class="text-info">{{ m.receiver }}</span>
-      </div>
-      <span class="text-subtle font-monospace">[{{ m.conversation_id[:8] }}]</span>
+    <div class="d-flex flex-wrap gap-2 text-subtle small mb-3" style="font-size: 0.78rem;">
+      <span class="p-1 px-2 rounded-2" style="background: rgba(255, 255, 255, 0.06);">
+        <i class="bi bi-building me-1"></i> Venue {{ h.venue_id }}
+      </span>
+      <span class="p-1 px-2 rounded-2" style="background: rgba(255, 255, 255, 0.06);">
+        <i class="bi bi-people me-1"></i> {{ h.guests }} guests
+      </span>
     </div>
-    <div class="text-subtle text-break ps-1" style="line-height: 1.4;">
-      {{ m.content }}
+
+    <!-- Thumb-Friendly Full-Width Action Buttons -->
+    <div class="row g-2">
+      <div class="col-6">
+        <form method="post" action="/dashboard/hire/{{ h.id }}/approve">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-sm btn-success w-100 py-2 fw-bold" style="border-radius: 12px; font-size: 0.85rem;">
+            <i class="bi bi-check-lg me-1"></i> Approve
+          </button>
+        </form>
+      </div>
+      <div class="col-6">
+        <form method="post" action="/dashboard/hire/{{ h.id }}/reject">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-sm btn-glass-danger w-100 py-2 fw-bold" style="border-radius: 12px; font-size: 0.85rem;">
+            <i class="bi bi-x-lg me-1"></i> Reject
+          </button>
+        </form>
+      </div>
     </div>
   </div>
   {% else %}
-  <p class="text-subtle small mb-0 text-center">No agent messages logged yet.</p>
+  <div class="glass-card text-center py-4 text-subtle small">
+    <i class="bi bi-check-circle-fill text-success fs-3 d-block mb-2"></i>
+    <div class="fw-semibold text-white">All Caught Up</div>
+    <div>No hire requests currently require admin approval.</div>
+  </div>
   {% endfor %}
 </div>
+
+<!-- Tab 2: Event Performance & Occupancy -->
+<div id="eventsTab" class="admin-tab-pane d-none">
+  {% for r in rows %}
+  <div class="glass-card mb-2 p-3">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <h6 class="text-white mb-0" style="font-weight: 700;">{{ r.title }}</h6>
+      <span class="badge rounded-pill bg-light bg-opacity-10 text-white" style="font-size: 0.68rem;">
+        {{ r.status }}
+      </span>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center text-subtle small mb-2" style="font-size: 0.78rem;">
+      <div>Tickets: <span class="text-white fw-bold">{{ r.sold }}</span> / {{ r.capacity }}</div>
+      <div>Revenue: <span class="text-success font-monospace fw-bold">£{{ '%.2f'|format(r.revenue) }}</span></div>
+    </div>
+
+    <!-- Occupancy Progress Bar -->
+    {% set pct = ((r.sold / r.capacity) * 100) if r.capacity > 0 else 0 %}
+    <div class="progress" style="height: 6px; background: rgba(255, 255, 255, 0.08); border-radius: 4px;">
+      <div class="progress-bar" role="progressbar" style="background: var(--primary-gradient);" data-width="{{ '%.0f'|format(pct) }}" aria-valuenow="{{ '%.0f'|format(pct) }}" aria-valuemin="0" aria-valuemax="100"></div>
+    </div>
+    <div class="d-flex justify-content-between align-items-center text-subtle mt-1" style="font-size: 0.7rem;">
+      <span>Check-ins: {{ r.check_ins }}</span>
+      <span>{{ '%.0f'|format(pct) }}% capacity</span>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-subtle small text-center py-3">No events found.</p>
+  {% endfor %}
+</div>
+
+<!-- Tab 3: Agent Bus Message Log -->
+<div id="logsTab" class="admin-tab-pane d-none">
+  <div class="p-3 rounded-4 overflow-y-auto" style="max-height: 460px; background: rgba(0, 0, 0, 0.55); border: 1px solid rgba(255, 255, 255, 0.1);">
+    {% for m in messages %}
+    <div class="mb-2 pb-2" style="border-bottom: 1px solid rgba(255, 255, 255, 0.06); font-family: monospace; font-size: 0.72rem; word-break: break-all; overflow-wrap: anywhere;">
+      <div class="d-flex align-items-center justify-content-between gap-1 mb-1">
+        <div>
+          <span class="badge {% if m.performative == 'AGREE' %}bg-success{% elif m.performative == 'REFUSE' %}bg-danger{% elif m.performative == 'PROPOSE' %}bg-warning text-dark{% elif m.performative == 'REQUEST' %}bg-primary{% else %}bg-info text-dark{% endif %} px-2 py-1"
+                style="font-size: 0.65rem;">
+            {{ m.performative }}
+          </span>
+          <strong class="text-white ms-1">{{ m.sender }}</strong>
+          <i class="bi bi-arrow-right text-subtle mx-1"></i>
+          <span class="text-info">{{ m.receiver }}</span>
+        </div>
+        <span class="text-subtle">[{{ m.conversation_id[:8] }}]</span>
+      </div>
+      <div class="text-subtle ps-1" style="line-height: 1.4;">
+        {{ m.content }}
+      </div>
+    </div>
+    {% else %}
+    <p class="text-subtle small mb-0 text-center">No agent messages logged yet.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchAdminTab(targetId, btn) {
+  document.querySelectorAll(".admin-tab-pane").forEach(p => p.classList.add("d-none"));
+  document.querySelectorAll(".segmented-tab").forEach(t => t.classList.remove("active"));
+  
+  const target = document.getElementById(targetId);
+  if (target) target.classList.remove("d-none");
+  if (btn) btn.classList.add("active");
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll(".progress-bar[data-width]").forEach(el => {
+    el.style.width = el.getAttribute("data-width") + "%";
+  });
+});
+</script>
 {% endblock %}
