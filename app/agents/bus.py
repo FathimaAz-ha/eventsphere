@@ -20,19 +20,24 @@ class Message(BaseModel):
     protocol: str = "fipa-request"
     in_reply_to: Optional[str] = None
     reply_by: Optional[datetime] = None
+    iteration: int = 1
 
 
 Handler = Callable[[Message], Awaitable[Message | None]]
 
 
 def make(sender, receiver, performative, content, conversation_id=None,
-         protocol="fipa-request", in_reply_to=None) -> Message:
+         # pyrefly: ignore[parse-error]
+         protocol="fipa-request", in_reply_to=None, iteration=1) -> Message:
+    # pyrefly: ignore[parse-error]
     assert performative in PERFORMATIVES, f"Invalid performative '{performative}'"
+    # pyrefly: ignore[parse-error]
     return Message(
         conversation_id=conversation_id or uuid.uuid4().hex,
         sender=sender, receiver=receiver,
         performative=performative, content=content,
         protocol=protocol, in_reply_to=in_reply_to,
+        iteration=iteration,
     )
 
 
@@ -99,3 +104,4 @@ class MessageBus:
             except Exception:
                 continue
         return replies
+# pyrefly: ignore[parse-error]

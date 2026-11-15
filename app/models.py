@@ -80,6 +80,10 @@ class HireRequest(SQLModel, table=True):
     guests: int
     status: str = "pending"
     price: float = 0.0
+    original_price: float = 0.0
+    savings: float = 0.0
+    negotiation_rounds: int = 1
+    concession_note: str = ""
     alternatives: str = ""
     decided_by: str = ""
 

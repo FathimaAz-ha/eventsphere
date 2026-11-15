@@ -7,6 +7,7 @@ try:
 except ImportError:
     pass
 
+from sqlalchemy import text
 from sqlmodel import SQLModel, Session, create_engine, select
 
 from .models import (
@@ -33,6 +34,18 @@ def get_session():
 
 def init_db():
     SQLModel.metadata.create_all(engine)
+    with engine.connect() as conn:
+        for col_name, col_type in [
+            ("original_price", "FLOAT DEFAULT 0.0"),
+            ("savings", "FLOAT DEFAULT 0.0"),
+            ("negotiation_rounds", "INTEGER DEFAULT 1"),
+            ("concession_note", "VARCHAR DEFAULT ''"),
+        ]:
+            try:
+                conn.execute(text(f"ALTER TABLE hirerequest ADD COLUMN {col_name} {col_type}"))
+                conn.commit()
+            except Exception:
+                pass
 
 
 def seed():

@@ -223,7 +223,7 @@ def test_fipa_contract_net_protocol_orchestration(env):
         db.refresh(v1); db.refresh(v2)
         v1_id, v2_id = v1.id, v2.id
 
-    start = datetime.utcnow() + timedelta(days=5)
+    start = _next_weekday(1)
     end = start + timedelta(hours=3)
     conv_id = "fipa-cnp-test-1"
 
@@ -266,7 +266,7 @@ def test_fipa_contract_net_proposes_capable_alternative(env):
         db.refresh(v_small); db.refresh(v_large)
         v_small_id, v_large_id = v_small.id, v_large.id
 
-    start = datetime.utcnow() + timedelta(days=5)
+    start = _next_weekday(1)
     end = start + timedelta(hours=2)
 
     # Request small venue for 50 guests (exceeds 30 capacity, but Grand Arena can hold)
@@ -281,6 +281,70 @@ def test_fipa_contract_net_proposes_capable_alternative(env):
     # Alternative proposed from Grand Arena's CFP bid
     assert len(reply.content["alternatives"]) >= 1
     assert reply.content["alternatives"][0]["venue_id"] == v_large_id
+
+
+def test_iterated_negotiation_counter_offer_concession(env):
+    """Multi-turn bargaining: Initiator issues counter-CFP (round 2) and venue concedes within reservation margin."""
+    engine, bus, _ = env
+    v_id, _, _ = _seed(engine, capacity=100, open_for_hire=True, hourly_rate=50.0)
+    start = _next_weekday(1)  # Guaranteed Tuesday (weekday multiplier = 1.0)
+    end = start + timedelta(hours=3)  # Standard quote: 3h × £50 = £150.0
+    conv_id = "iterated-neg-concession-1"
+
+    # User target budget £130 is within venue's 20% concession floor (£150 × 0.8 = £120)
+    reply = run(bus.send(make(
+        "UserTest", "VenueAgent", "REQUEST",
+        {"action": "hire_request", "venue_id": v_id,
+         "start": start.isoformat(), "end": end.isoformat(),
+         "purpose": "Tech Meetup", "guests": 25,
+         "target_budget": 130.0}, conv_id)))
+
+    assert reply.performative == "AGREE"
+    assert reply.content["price"] == 130.0
+    assert reply.content["original_price"] == 150.0
+    assert reply.content["savings"] == 20.0
+    assert reply.content["negotiation_rounds"] == 2
+    assert "Concession agreed" in reply.content["concession"]
+
+    # Verify message sequence contains Round 2 counter-offer and concession
+    with Session(engine) as db:
+        logs = db.exec(select(MessageLog).where(MessageLog.conversation_id == conv_id)).all()
+        cfp_logs = [l for l in logs if l.performative == "CFP"]
+        propose_logs = [l for l in logs if l.performative == "PROPOSE"]
+
+        # 2 CFPs (Round 1 initial broadcast + Round 2 counter-offer)
+        assert len(cfp_logs) >= 2
+        # 2 Proposals from target venue (Round 1 initial quote + Round 2 concession)
+        assert len(propose_logs) >= 2
+
+
+def test_iterated_negotiation_redirects_to_cheaper_budget_alternative(env):
+    """When target venue floor cannot meet budget, Initiator proposes cheaper alternative from Round 1 bids."""
+    engine, bus, _ = env
+    with Session(engine) as db:
+        v_exp = Venue(name="Executive Suite", location="Tower A", capacity=100, hourly_rate=80.0, open_for_hire=True)
+        v_chp = Venue(name="Community Hall", location="Wing B", capacity=60, hourly_rate=30.0, open_for_hire=True)
+        db.add_all([v_exp, v_chp]); db.commit()
+        db.refresh(v_exp); db.refresh(v_chp)
+        v_exp_id, v_chp_id = v_exp.id, v_chp.id
+
+    start = _next_weekday(1)  # Guaranteed Tuesday (weekday multiplier = 1.0)
+    end = start + timedelta(hours=3)  # Exp: £240 (floor £192); Chp: £90
+    conv_id = "iterated-neg-budget-alt"
+
+    # User targets budget £110 for Executive Suite (below £192 floor, but Community Hall £90 fits)
+    reply = run(bus.send(make(
+        "UserTest", "VenueAgent", "REQUEST",
+        {"action": "hire_request", "venue_id": v_exp_id,
+         "start": start.isoformat(), "end": end.isoformat(),
+         "purpose": "Workshop", "guests": 20,
+         "target_budget": 110.0}, conv_id)))
+
+    assert reply.performative == "PROPOSE"
+    assert "exceeds your target budget" in reply.content["reason"]
+    assert len(reply.content["alternatives"]) >= 1
+    assert reply.content["alternatives"][0]["venue_id"] == v_chp_id
+    assert reply.content["alternatives"][0]["price"] == 90.0
 
 
 # ============================================================

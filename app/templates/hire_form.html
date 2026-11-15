@@ -55,7 +55,30 @@
       </div>
     </div>
 
-    <!-- 4. Dynamic Live Pricing Widget -->
+    <!-- 4. Multi-Agent Iterated Negotiation / Target Budget (Optional) -->
+    <div class="mb-3">
+      <label class="form-label text-white d-flex justify-content-between align-items-center mb-1">
+        <span><i class="bi bi-robot me-1" style="color: #c084fc;"></i> 4. Agent Bargaining &amp; Budget</span>
+        <span class="badge rounded-pill bg-light bg-opacity-10 text-subtle font-monospace" style="font-size: 0.65rem;">OPTIONAL</span>
+      </label>
+      <div class="p-3 rounded-4 mb-2" style="background: rgba(192, 132, 252, 0.06); border: 1px solid rgba(192, 132, 252, 0.2);">
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" name="auto_negotiate" id="autoNegotiateCheck" value="true" onchange="toggleNegotiateInput()">
+          <label class="form-check-label text-white small" for="autoNegotiateCheck">
+            Enable Iterated Multi-Turn Agent Bargaining
+          </label>
+        </div>
+        <div id="targetBudgetGroup" class="d-none mt-2">
+          <label class="text-subtle small d-block mb-1" style="font-size: 0.72rem;">TARGET BUDGET (£)</label>
+          <input name="target_budget" id="targetBudgetInput" type="number" step="0.01" min="1" class="form-control" placeholder="e.g. 150.00 (Agent will negotiate discount)">
+          <span class="text-subtle mt-1 d-block" style="font-size: 0.7rem; line-height: 1.3;">
+            VenueAgent will issue counter-CFPs to negotiate with venue units down to their 20% reserve floor.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Dynamic Live Pricing Widget -->
     <div class="p-3 rounded-4 mb-3" style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1);">
       <div class="d-flex justify-content-between align-items-center">
         <div>
@@ -89,9 +112,24 @@
   </div>
 
   {% if result.price %}
-  <div class="fs-5 fw-bold text-white mb-2 font-monospace">
+  <div class="fs-5 fw-bold text-white mb-1 font-monospace">
     Calculated Price: £{{ '%.2f'|format(result.price) }}
   </div>
+  {% endif %}
+
+  {% if result.savings and result.savings > 0 %}
+  <div class="p-2 rounded-3 mb-2 small d-flex align-items-center justify-content-between" style="background: rgba(34, 197, 94, 0.14); border: 1px solid rgba(34, 197, 94, 0.3);">
+    <div>
+      <span class="badge bg-success me-1">SAVED £{{ '%.2f'|format(result.savings) }}</span>
+      <span class="text-white">Negotiated across {{ result.negotiation_rounds }} rounds!</span>
+    </div>
+    <span class="text-subtle text-decoration-line-through font-monospace">£{{ '%.2f'|format(result.original_price) }}</span>
+  </div>
+  {% if result.concession %}
+  <div class="small text-subtle mb-2 fst-italic ps-1" style="font-size: 0.75rem;">
+    <i class="bi bi-chat-quote me-1"></i> {{ result.concession }}
+  </div>
+  {% endif %}
   {% endif %}
 
   {% if result.reason %}
@@ -136,6 +174,9 @@
       </div>
       <div class="small text-subtle" style="font-size: 0.75rem;">
         {{ h.guests }} guests &middot; {{ h.starts_at.strftime('%d %b %H:%M') }}
+        {% if h.savings and h.savings > 0 %}
+        &middot; <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25" style="font-size: 0.62rem;">Saved £{{ '%.2f'|format(h.savings) }} ({{ h.negotiation_rounds }} rnds)</span>
+        {% endif %}
       </div>
     </div>
     <div class="text-end">
@@ -155,6 +196,18 @@
 
 {% block scripts %}
 <script>
+function toggleNegotiateInput() {
+  const check = document.getElementById("autoNegotiateCheck");
+  const grp = document.getElementById("targetBudgetGroup");
+  if (!check || !grp) return;
+  if (check.checked) {
+    grp.classList.remove("d-none");
+  } else {
+    grp.classList.add("d-none");
+    const inp = document.getElementById("targetBudgetInput");
+    if (inp) inp.value = "";
+  }
+}
 function calculateEstimate() {
   const select = document.getElementById("venueSelect");
   if (!select) return;

@@ -92,7 +92,7 @@ class VenueAgent:
         mult = WEEKEND_MULTIPLIER if start.weekday() >= 5 else 1.0
         return round(hours * venue.hourly_rate * mult, 2)
 
-    # ---------- FIPA CNP: Participant Venue Unit Handler ----------
+    # ---------- FIPA Iterated CNP: Participant Venue Unit Handler ----------
     async def _handle_venue_unit(self, msg: Message, venue_id: int) -> Message:
         c = msg.content
         agent_name = f"VenueAgent:{venue_id}"
@@ -108,30 +108,84 @@ class VenueAgent:
                 if not venue:
                     return make(agent_name, msg.sender, "REFUSE",
                                 {"venue_id": venue_id, "reason": "Venue does not exist"},
-                                msg.conversation_id, protocol="fipa-contract-net", in_reply_to=msg.id)
+                                msg.conversation_id, protocol="fipa-iterated-contract-net", in_reply_to=msg.id,
+                                iteration=msg.iteration)
                 if not venue.open_for_hire:
                     return make(agent_name, msg.sender, "REFUSE",
                                 {"venue_id": venue_id, "reason": f"'{venue.name}' is not open for private hire"},
-                                msg.conversation_id, protocol="fipa-contract-net", in_reply_to=msg.id)
+                                msg.conversation_id, protocol="fipa-iterated-contract-net", in_reply_to=msg.id,
+                                iteration=msg.iteration)
                 if guests > venue.capacity:
                     return make(agent_name, msg.sender, "REFUSE",
                                 {"venue_id": venue_id, "capacity": venue.capacity,
                                  "reason": f"'{venue.name}' holds only {venue.capacity} guests"},
-                                msg.conversation_id, protocol="fipa-contract-net", in_reply_to=msg.id)
+                                msg.conversation_id, protocol="fipa-iterated-contract-net", in_reply_to=msg.id,
+                                iteration=msg.iteration)
 
                 clash = self._clashes(db, venue.id, start, end)
                 if clash:
                     return make(agent_name, msg.sender, "REFUSE",
                                 {"venue_id": venue.id, "clash_title": clash.title,
                                  "reason": f"Venue booked by '{clash.title}' at that time"},
-                                msg.conversation_id, protocol="fipa-contract-net", in_reply_to=msg.id)
+                                msg.conversation_id, protocol="fipa-iterated-contract-net", in_reply_to=msg.id,
+                                iteration=msg.iteration)
 
-                price = self._price(venue, start, end)
+                base_price = self._price(venue, start, end)
+
+                # Round 2+ Counter-Offer handling:
+                if c.get("action") == "counter_offer" or "counter_price" in c:
+                    counter_price = float(c["counter_price"])
+                    # Autonomous Concession Strategy:
+                    # Venue allows up to 20% discount as its reservation floor
+                    reserve_floor = round(base_price * 0.80, 2)
+
+                    if counter_price >= base_price:
+                        return make(agent_name, msg.sender, "PROPOSE",
+                                    {"venue_id": venue.id, "venue_name": venue.name,
+                                     "capacity": venue.capacity, "price": base_price,
+                                     "original_price": base_price, "savings": 0.0,
+                                     "concession": "Standard rate maintained",
+                                     "is_final": False, "iteration": msg.iteration,
+                                     "start": c["start"], "end": c["end"]},
+                                    msg.conversation_id, protocol="fipa-iterated-contract-net", in_reply_to=msg.id,
+                                    iteration=msg.iteration)
+                    elif counter_price >= reserve_floor:
+                        conceded_price = round(counter_price, 2)
+                        savings = round(base_price - conceded_price, 2)
+                        discount_pct = round((savings / base_price) * 100, 1)
+                        return make(agent_name, msg.sender, "PROPOSE",
+                                    {"venue_id": venue.id, "venue_name": venue.name,
+                                     "capacity": venue.capacity, "price": conceded_price,
+                                     "original_price": base_price, "savings": savings,
+                                     "concession": f"Concession agreed: {discount_pct}% discount (-£{savings:.2f})",
+                                     "is_final": conceded_price <= reserve_floor,
+                                     "iteration": msg.iteration,
+                                     "start": c["start"], "end": c["end"]},
+                                    msg.conversation_id, protocol="fipa-iterated-contract-net", in_reply_to=msg.id,
+                                    iteration=msg.iteration)
+                    else:
+                        # Below reserve floor: Offer Best-and-Final-Offer (BAFO) at the reserve floor
+                        savings = round(base_price - reserve_floor, 2)
+                        return make(agent_name, msg.sender, "PROPOSE",
+                                    {"venue_id": venue.id, "venue_name": venue.name,
+                                     "capacity": venue.capacity, "price": reserve_floor,
+                                     "original_price": base_price, "savings": savings,
+                                     "concession": f"Reserve floor reached: minimum rate is £{reserve_floor:.2f} (max 20% discount)",
+                                     "is_final": True,
+                                     "iteration": msg.iteration,
+                                     "start": c["start"], "end": c["end"]},
+                                    msg.conversation_id, protocol="fipa-iterated-contract-net", in_reply_to=msg.id,
+                                    iteration=msg.iteration)
+
+                # Round 1 Initial Bid:
                 return make(agent_name, msg.sender, "PROPOSE",
                             {"venue_id": venue.id, "venue_name": venue.name,
-                             "capacity": venue.capacity, "price": price,
+                             "capacity": venue.capacity, "price": base_price,
+                             "original_price": base_price, "savings": 0.0,
+                             "iteration": msg.iteration,
                              "start": c["start"], "end": c["end"]},
-                            msg.conversation_id, protocol="fipa-contract-net", in_reply_to=msg.id)
+                            msg.conversation_id, protocol="fipa-iterated-contract-net", in_reply_to=msg.id,
+                            iteration=msg.iteration)
 
         # 2. ACCEPT-PROPOSAL received -> Award contract, evaluate escalation rules, confirm
         if msg.performative == "ACCEPT-PROPOSAL":
@@ -143,6 +197,10 @@ class VenueAgent:
             with Session(self.engine) as db:
                 venue = db.get(Venue, venue_id)
                 price = c.get("price", self._price(venue, start, end))
+                original_price = c.get("original_price", price)
+                savings = c.get("savings", round(original_price - price, 2))
+                concession = c.get("concession", "")
+                rounds = c.get("negotiation_rounds", msg.iteration)
 
                 reasons = []
                 if guests > venue.capacity * 0.8:
@@ -155,19 +213,26 @@ class VenueAgent:
                 if reasons:
                     return make(agent_name, msg.sender, "INFORM",
                                 {"escalate": True, "reason": f"Escalated for admin approval: {', '.join(reasons)}",
-                                 "price": price, "venue_id": venue.id},
-                                msg.conversation_id, protocol="fipa-contract-net", in_reply_to=msg.id)
+                                 "price": price, "original_price": original_price, "savings": savings,
+                                 "negotiation_rounds": rounds, "concession": concession,
+                                 "venue_id": venue.id},
+                                msg.conversation_id, protocol="fipa-iterated-contract-net", in_reply_to=msg.id,
+                                iteration=msg.iteration)
 
                 return make(agent_name, msg.sender, "INFORM",
                             {"escalate": False, "status": "confirmed", "price": price,
+                             "original_price": original_price, "savings": savings,
+                             "negotiation_rounds": rounds, "concession": concession,
                              "venue_id": venue.id, "start": c["start"], "end": c["end"]},
-                            msg.conversation_id, protocol="fipa-contract-net", in_reply_to=msg.id)
+                            msg.conversation_id, protocol="fipa-iterated-contract-net", in_reply_to=msg.id,
+                            iteration=msg.iteration)
 
         # 3. REJECT-PROPOSAL received -> Acknowledge bid release
         if msg.performative == "REJECT-PROPOSAL":
             return make(agent_name, msg.sender, "INFORM",
                         {"status": "released", "venue_id": venue_id},
-                        msg.conversation_id, protocol="fipa-contract-net", in_reply_to=msg.id)
+                        msg.conversation_id, protocol="fipa-iterated-contract-net", in_reply_to=msg.id,
+                        iteration=msg.iteration)
 
         return self._refuse(msg, f"Unknown performative '{msg.performative}' for venue unit")
 
@@ -224,12 +289,14 @@ class VenueAgent:
             return self._refuse(msg, "Number of guests must be at least 1")
 
         target_venue_id = int(c.get("venue_id", 0))
+        target_budget = float(c["target_budget"]) if c.get("target_budget") is not None else None
+        auto_negotiate = bool(c.get("auto_negotiate") or target_budget is not None)
         duration = end - start
 
         # Ensure all venue participants are active on the bus
         self._sync_venue_participants()
 
-        # Step 1: Initiator broadcasts CFP (Call for Proposals) to all venue units
+        # Step 1: Initiator broadcasts Round 1 CFP (Call for Proposals) to all venue units
         cfp_msg = make(
             sender=self.name,
             receiver="*",
@@ -243,7 +310,8 @@ class VenueAgent:
                 "target_venue_id": target_venue_id,
             },
             conversation_id=msg.conversation_id,
-            protocol="fipa-contract-net",
+            protocol="fipa-iterated-contract-net",
+            iteration=1,
         )
         replies = await self.bus.broadcast_collect(cfp_msg, target_prefix="VenueAgent:")
 
@@ -256,21 +324,96 @@ class VenueAgent:
 
         # Case A: Requested venue submitted a valid proposal
         if target_proposal:
+            p1 = float(target_proposal.content["price"])
+            winning_proposal = target_proposal
+            rounds = 1
+            concession_note = ""
+
+            # Check if multi-turn counter-offer bargaining is triggered
+            should_negotiate = (target_budget is not None and target_budget < p1) or (auto_negotiate and duration >= timedelta(hours=3)) or (auto_negotiate and target_budget is None)
+
+            if should_negotiate:
+                counter_price = target_budget if (target_budget is not None and target_budget < p1) else round(p1 * 0.85, 2)
+                counter_cfp = make(
+                    sender=self.name,
+                    receiver=f"VenueAgent:{target_venue_id}",
+                    performative="CFP",
+                    content={
+                        "action": "counter_offer",
+                        "start": c["start"],
+                        "end": c["end"],
+                        "guests": guests,
+                        "counter_price": counter_price,
+                        "target_budget": target_budget,
+                        "target_venue_id": target_venue_id,
+                        "rationale": f"User target budget £{counter_price:.2f}" if target_budget else "Multi-hour duration discount requested",
+                    },
+                    conversation_id=msg.conversation_id,
+                    protocol="fipa-iterated-contract-net",
+                    in_reply_to=target_proposal.id,
+                    iteration=2,
+                )
+                counter_reply = await self.bus.send(counter_cfp)
+                if counter_reply and counter_reply.performative == "PROPOSE":
+                    p2 = float(counter_reply.content["price"])
+                    rounds = 2
+                    concession_note = counter_reply.content.get("concession", "")
+
+                    # If user had a strict target budget and target venue floor cannot meet it:
+                    if target_budget is not None and p2 > target_budget:
+                        budget_alts = [
+                            p for p in proposals
+                            if p.content.get("venue_id") != target_venue_id
+                            and p.content.get("price", float("inf")) <= target_budget
+                            and p.content.get("capacity", 0) >= guests
+                        ]
+                        if budget_alts:
+                            alts_data = [{
+                                "venue_id": p.content["venue_id"],
+                                "venue_name": p.content["venue_name"],
+                                "price": p.content["price"],
+                                "start": c["start"],
+                                "end": c["end"]
+                            } for p in budget_alts]
+                            await self.bus.send(make(
+                                self.name, f"VenueAgent:{target_venue_id}", "REJECT-PROPOSAL",
+                                {"venue_id": target_venue_id, "reason": "Target budget could not be met"},
+                                msg.conversation_id, protocol="fipa-iterated-contract-net",
+                                in_reply_to=counter_reply.id, iteration=2
+                            ))
+                            return self._propose(
+                                msg,
+                                f"Requested venue minimum rate is £{p2:.2f}, which exceeds your target budget of £{target_budget:.2f}. Alternate venues match your budget:",
+                                alts_data,
+                                in_reply_to=counter_reply.id
+                            )
+
+                    winning_proposal = counter_reply
+
             # Step 3: Send ACCEPT-PROPOSAL to the winning venue
+            final_price = winning_proposal.content["price"]
+            orig_price = winning_proposal.content.get("original_price", final_price)
+            savings = winning_proposal.content.get("savings", round(orig_price - final_price, 2))
+
             accept_msg = make(
                 sender=self.name,
                 receiver=f"VenueAgent:{target_venue_id}",
                 performative="ACCEPT-PROPOSAL",
                 content={
                     "venue_id": target_venue_id,
-                    "price": target_proposal.content["price"],
+                    "price": final_price,
+                    "original_price": orig_price,
+                    "savings": savings,
+                    "concession": concession_note,
+                    "negotiation_rounds": rounds,
                     "start": c["start"],
                     "end": c["end"],
                     "guests": guests,
                 },
                 conversation_id=msg.conversation_id,
-                protocol="fipa-contract-net",
-                in_reply_to=target_proposal.id,
+                protocol="fipa-iterated-contract-net",
+                in_reply_to=winning_proposal.id,
+                iteration=rounds,
             )
             inform_reply = await self.bus.send(accept_msg)
 
@@ -283,8 +426,9 @@ class VenueAgent:
                         performative="REJECT-PROPOSAL",
                         content={"venue_id": other_p.content.get("venue_id"), "reason": "Another venue selected"},
                         conversation_id=msg.conversation_id,
-                        protocol="fipa-contract-net",
+                        protocol="fipa-iterated-contract-net",
                         in_reply_to=other_p.id,
+                        iteration=rounds,
                     )
                     await self.bus.send(reject_msg)
 
@@ -292,14 +436,24 @@ class VenueAgent:
             if inform_reply and inform_reply.content.get("escalate"):
                 return make(self.name, msg.sender, "PROPOSE",
                             {"reason": inform_reply.content["reason"],
-                             "escalate": True, "price": target_proposal.content["price"],
+                             "escalate": True,
+                             "price": final_price,
+                             "original_price": orig_price,
+                             "savings": savings,
+                             "negotiation_rounds": rounds,
+                             "concession": concession_note,
                              "alternatives": []},
-                            msg.conversation_id)
+                            msg.conversation_id, iteration=rounds)
 
             return make(self.name, msg.sender, "AGREE",
-                        {"price": target_proposal.content["price"], "venue_id": target_venue_id,
+                        {"price": final_price,
+                         "original_price": orig_price,
+                         "savings": savings,
+                         "negotiation_rounds": rounds,
+                         "concession": concession_note,
+                         "venue_id": target_venue_id,
                          "start": c["start"], "end": c["end"]},
-                        msg.conversation_id)
+                        msg.conversation_id, iteration=rounds)
 
         # Case B: Requested venue refused
         with Session(self.engine) as db:

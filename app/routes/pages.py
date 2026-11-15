@@ -1,3 +1,4 @@
+from typing import Optional
 import base64
 import io
 import uuid
@@ -267,7 +268,10 @@ def hire_get(request: Request,
 async def hire_post(request: Request,
                     venue_id: int = Form(...), starts_at: str = Form(...),
                     ends_at: str = Form(...), purpose: str = Form(...),
-                    guests: int = Form(...), csrf: str = Form(""),
+                    guests: int = Form(...),
+                    target_budget: Optional[float] = Form(None),
+                    auto_negotiate: Optional[bool] = Form(False),
+                    csrf: str = Form(""),
                     user=Depends(require_user),
                     sess=Depends(current_session),
                     db: Session = Depends(get_session)):
@@ -276,7 +280,9 @@ async def hire_post(request: Request,
         "WebUI", "VenueAgent", "REQUEST",
         {"action": "hire_request", "venue_id": venue_id,
          "start": starts_at, "end": ends_at,
-         "purpose": purpose, "guests": guests},
+         "purpose": purpose, "guests": guests,
+         "target_budget": target_budget,
+         "auto_negotiate": auto_negotiate},
         uuid.uuid4().hex))
     if not reply:
         raise HTTPException(500, "VenueAgent did not reply")
@@ -285,31 +291,51 @@ async def hire_post(request: Request,
     start = datetime.fromisoformat(starts_at)
     end = datetime.fromisoformat(ends_at)
 
+    price = c.get("price", 0)
+    orig_price = c.get("original_price", price)
+    savings = c.get("savings", round(orig_price - price, 2))
+    rounds = c.get("negotiation_rounds", 1)
+    concession = c.get("concession", "")
+
     if reply.performative == "REFUSE":
         result = {"status": "refused", "reason": c.get("reason"),
-                  "price": 0, "alternatives": []}
+                  "price": 0, "original_price": 0, "savings": 0,
+                  "negotiation_rounds": 1, "concession": "", "alternatives": []}
     elif reply.performative == "PROPOSE":
         escalate = bool(c.get("escalate"))
         result = {"status": "escalated" if escalate else "pending",
                   "reason": c.get("reason"),
-                  "price": c.get("price", 0),
+                  "price": price,
+                  "original_price": orig_price,
+                  "savings": savings,
+                  "negotiation_rounds": rounds,
+                  "concession": concession,
                   "alternatives": c.get("alternatives", [])}
         db.add(HireRequest(user_id=user.id, venue_id=venue_id,
                            starts_at=start, ends_at=end,
                            purpose=purpose, guests=guests,
                            status="escalated" if escalate else "pending",
-                           price=c.get("price", 0),
+                           price=price, original_price=orig_price,
+                           savings=savings, negotiation_rounds=rounds,
+                           concession_note=concession,
                            alternatives=str(c.get("alternatives", [])),
                            decided_by="VenueAgent"))
         db.commit()
     else:  # AGREE
         result = {"status": "confirmed",
-                  "reason": "Confirmed automatically by VenueAgent",
-                  "price": c.get("price", 0), "alternatives": []}
+                  "reason": "Confirmed automatically by VenueAgent" if rounds == 1 else f"Agreed via Iterated Negotiation ({rounds} rounds)",
+                  "price": price,
+                  "original_price": orig_price,
+                  "savings": savings,
+                  "negotiation_rounds": rounds,
+                  "concession": concession,
+                  "alternatives": []}
         db.add(HireRequest(user_id=user.id, venue_id=venue_id,
                            starts_at=start, ends_at=end,
                            purpose=purpose, guests=guests,
-                           status="confirmed", price=c.get("price", 0),
+                           status="confirmed", price=price,
+                           original_price=orig_price, savings=savings,
+                           negotiation_rounds=rounds, concession_note=concession,
                            decided_by="VenueAgent"))
         db.commit()
 

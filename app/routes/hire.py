@@ -20,6 +20,8 @@ class HireIn(BaseModel):
     ends_at: datetime
     purpose: str
     guests: int
+    target_budget: float | None = None
+    auto_negotiate: bool | None = False
 
 
 class DecideIn(BaseModel):
@@ -35,7 +37,9 @@ async def request_hire(body: HireIn, request: Request,
         "HireRoute", "VenueAgent", "REQUEST",
         {"action": "hire_request", "venue_id": body.venue_id,
          "start": body.starts_at.isoformat(), "end": body.ends_at.isoformat(),
-         "purpose": body.purpose, "guests": body.guests},
+         "purpose": body.purpose, "guests": body.guests,
+         "target_budget": body.target_budget,
+         "auto_negotiate": body.auto_negotiate},
         conv,
     ))
     if not reply:
@@ -56,15 +60,25 @@ async def request_hire(body: HireIn, request: Request,
     else:  # AGREE
         status, alts = "confirmed", []
 
+    price = c.get("price", 0)
+    orig_price = c.get("original_price", price)
+    savings = c.get("savings", round(orig_price - price, 2))
+    rounds = c.get("negotiation_rounds", 1)
+    concession = c.get("concession", "")
+
     h = HireRequest(user_id=user.id, venue_id=body.venue_id,
                     starts_at=body.starts_at, ends_at=body.ends_at,
                     purpose=body.purpose, guests=body.guests,
-                    status=status, price=c.get("price", 0),
+                    status=status, price=price,
+                    original_price=orig_price, savings=savings,
+                    negotiation_rounds=rounds, concession_note=concession,
                     alternatives=json.dumps(alts),
                     decided_by="VenueAgent")
     db.add(h); db.commit(); db.refresh(h)
     return {"status": status, "hire_id": h.id,
-            "price": c.get("price", 0), "reason": c.get("reason"),
+            "price": price, "original_price": orig_price,
+            "savings": savings, "negotiation_rounds": rounds,
+            "concession": concession, "reason": c.get("reason"),
             "alternatives": alts, "conversation_id": conv}
 
 
