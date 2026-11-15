@@ -9,6 +9,9 @@ from .models import (
 
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./eventsphere.db")
+# Render (and old Heroku) provide 'postgres://' but SQLAlchemy needs 'postgresql://'
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 _connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, echo=False, connect_args=_connect_args)
 
