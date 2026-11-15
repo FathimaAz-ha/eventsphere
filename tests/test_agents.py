@@ -8,7 +8,7 @@ from app.agents.bus import make
 from app.agents.registry import build_agents
 from app.models import (
     Event, Venue, TicketCategory, Booking, Ticket,
-    WaitlistEntry, Notification,
+    WaitlistEntry, Notification, MessageLog,
 )
 
 
@@ -211,6 +211,76 @@ def test_venue_agent_escalation_rules(env):
     assert reply3.performative == "PROPOSE"
     assert reply3.content.get("escalate") is True
     assert "long duration" in reply3.content["reason"]
+
+
+def test_fipa_contract_net_protocol_orchestration(env):
+    """Verify FIPA Contract Net Protocol: CFP broadcast, multi-venue bidding, accept/reject, and INFORM confirmation."""
+    engine, bus, _ = env
+    with Session(engine) as db:
+        v1 = Venue(name="Grand Hall", location="Building A", capacity=100, hourly_rate=50.0, open_for_hire=True)
+        v2 = Venue(name="Seminar Room", location="Building B", capacity=40, hourly_rate=25.0, open_for_hire=True)
+        db.add_all([v1, v2]); db.commit()
+        db.refresh(v1); db.refresh(v2)
+        v1_id, v2_id = v1.id, v2.id
+
+    start = datetime.utcnow() + timedelta(days=5)
+    end = start + timedelta(hours=3)
+    conv_id = "fipa-cnp-test-1"
+
+    # Hire request targeting Grand Hall for 20 guests (feasible for both venues)
+    reply = run(bus.send(make(
+        "UserTest", "VenueAgent", "REQUEST",
+        {"action": "hire_request", "venue_id": v1_id,
+         "start": start.isoformat(), "end": end.isoformat(),
+         "purpose": "Company Workshop", "guests": 20}, conv_id)))
+
+    assert reply.performative == "AGREE"
+    assert reply.content["venue_id"] == v1_id
+
+    # Verify standard FIPA CNP message sequence in MessageLog
+    with Session(engine) as db:
+        logs = db.exec(select(MessageLog).where(MessageLog.conversation_id == conv_id)).all()
+        performatives = [l.performative for l in logs]
+
+        # Must include CFP, PROPOSE (bids from venues), ACCEPT-PROPOSAL, REJECT-PROPOSAL, INFORM
+        assert "CFP" in performatives
+        assert "PROPOSE" in performatives
+        assert "ACCEPT-PROPOSAL" in performatives
+        assert "REJECT-PROPOSAL" in performatives
+        assert "INFORM" in performatives
+
+        # Verify recipient of ACCEPT was v1 and REJECT was v2
+        accept_log = next(l for l in logs if l.performative == "ACCEPT-PROPOSAL")
+        reject_log = next(l for l in logs if l.performative == "REJECT-PROPOSAL")
+        assert accept_log.receiver == f"VenueAgent:{v1_id}"
+        assert reject_log.receiver == f"VenueAgent:{v2_id}"
+
+
+def test_fipa_contract_net_proposes_capable_alternative(env):
+    """When target venue refuses due to capacity, CNP recommends proposals from capable candidate venues."""
+    engine, bus, _ = env
+    with Session(engine) as db:
+        v_small = Venue(name="Small Suite", location="Wing 1", capacity=30, hourly_rate=20.0, open_for_hire=True)
+        v_large = Venue(name="Grand Arena", location="Wing 2", capacity=200, hourly_rate=80.0, open_for_hire=True)
+        db.add_all([v_small, v_large]); db.commit()
+        db.refresh(v_small); db.refresh(v_large)
+        v_small_id, v_large_id = v_small.id, v_large.id
+
+    start = datetime.utcnow() + timedelta(days=5)
+    end = start + timedelta(hours=2)
+
+    # Request small venue for 50 guests (exceeds 30 capacity, but Grand Arena can hold)
+    reply = run(bus.send(make(
+        "UserTest", "VenueAgent", "REQUEST",
+        {"action": "hire_request", "venue_id": v_small_id,
+         "start": start.isoformat(), "end": end.isoformat(),
+         "purpose": "Team Gathering", "guests": 50}, "conv-cnp-alt")))
+
+    assert reply.performative == "PROPOSE"
+    assert "holds only 30 guests" in reply.content["reason"]
+    # Alternative proposed from Grand Arena's CFP bid
+    assert len(reply.content["alternatives"]) >= 1
+    assert reply.content["alternatives"][0]["venue_id"] == v_large_id
 
 
 # ============================================================
